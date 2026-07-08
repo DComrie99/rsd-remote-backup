@@ -459,6 +459,48 @@ $current_provider = RSD_RB_Settings::get_provider();
                     </td>
                 </tr>
             <?php endif; ?>
+            <?php if ( isset( $server_stats['plugins']['wordfence'] ) ) : $wf = $server_stats['plugins']['wordfence']; ?>
+                <tr>
+                    <th scope="row"><?php esc_html_e( 'Wordfence', 'rsd-remote-backup' ); ?></th>
+                    <td>
+                        <?php echo esc_html( sprintf( 'v%s', $wf['version'] ) ); ?>
+                        <?php if ( ! $wf['firewall_summary_available'] ) : ?>
+                            &nbsp;<em><?php esc_html_e( 'Firewall Summary not available on this site.', 'rsd-remote-backup' ); ?></em>
+                        <?php else : ?>
+                            <table class="widefat striped" style="margin-top:8px;max-width:520px;">
+                                <thead>
+                                    <tr>
+                                        <th><?php esc_html_e( 'Firewall Summary', 'rsd-remote-backup' ); ?></th>
+                                        <th><?php esc_html_e( 'Complex', 'rsd-remote-backup' ); ?></th>
+                                        <th><?php esc_html_e( 'Brute Force', 'rsd-remote-backup' ); ?></th>
+                                        <th><?php esc_html_e( 'Blocklist', 'rsd-remote-backup' ); ?></th>
+                                        <th><?php esc_html_e( 'Total', 'rsd-remote-backup' ); ?></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
+                                    $window_labels = array(
+                                        '24h' => __( 'Today', 'rsd-remote-backup' ),
+                                        '7d'  => __( 'Week', 'rsd-remote-backup' ),
+                                        '30d' => __( 'Month', 'rsd-remote-backup' ),
+                                    );
+                                    foreach ( $window_labels as $window_key => $label ) :
+                                    ?>
+                                        <tr>
+                                            <th><?php echo esc_html( $label ); ?></th>
+                                            <td><?php echo esc_html( number_format_i18n( $wf['firewall_summary']['complex'][ $window_key ] ) ); ?></td>
+                                            <td><?php echo esc_html( number_format_i18n( $wf['firewall_summary']['brute_force'][ $window_key ] ) ); ?></td>
+                                            <td><?php echo esc_html( number_format_i18n( $wf['firewall_summary']['blocklist'][ $window_key ] ) ); ?></td>
+                                            <td><strong><?php echo esc_html( number_format_i18n( $wf['firewall_summary_totals'][ $window_key ] ) ); ?></strong></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                            <p class="description"><?php esc_html_e( 'Attacks blocked, grouped the same way as the Wordfence dashboard\'s own Firewall Summary widget. "Blocklist" counts may read low/zero on a free (non-Premium) license — real-time blocklist blocking is a paid feature.', 'rsd-remote-backup' ); ?></p>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+            <?php endif; ?>
         </table>
 
         <!-- Job queue -->

@@ -35,6 +35,7 @@ class RSD_RB_Server_Stats {
     private static function get_plugin_collectors(): array {
         return array(
             'wp_rocket' => array( __CLASS__, 'collect_wp_rocket' ),
+            'wordfence' => array( __CLASS__, 'collect_wordfence' ),
         );
     }
 
@@ -103,6 +104,79 @@ class RSD_RB_Server_Stats {
             'global_score'       => null !== $global_score ? (int) $global_score : null,
             'pages_monitored'    => $pages_monitored,
             'pages_completed'    => $pages_completed,
+        );
+    }
+
+    /**
+     * Reimplements Wordfence's own "Firewall Summary" dashboard widget
+     * (wfActivityReport::getBlockedCount(), see lib/wfActivityReport.php and
+     * lib/dashboard/widget_localattacks.php in the Wordfence source) — same
+     * grouping of blockType values into complex/brute_force/blocklist, same
+     * SUM(blockCount) over the same 24h/7d/30d unixday windows, against the
+     * same wfBlockedIPLog table Wordfence itself reads for that widget.
+     *
+     * Table name/case is network-wide (wfDB::networkTable() uses
+     * $wpdb->base_prefix, not $wpdb->prefix — relevant on multisite) and its
+     * case (CamelCase vs lowercase) depends on the 'wordfence_case' option,
+     * set once at table-creation time based on that install's MySQL
+     * case-sensitivity — replicated here rather than assumed.
+     *
+     * Coupled to Wordfence's internal, undocumented schema — if a future
+     * Wordfence version changes wfBlockedIPLog's columns/blockType values,
+     * this will start returning firewall_summary_available=false rather than
+     * erroring, but will need updating to match to keep reporting numbers.
+     *
+     * @return array|null Null if Wordfence is not active on this site.
+     */
+    private static function collect_wordfence(): ?array {
+        if ( ! defined( 'WORDFENCE_VERSION' ) ) {
+            return null;
+        }
+
+        global $wpdb;
+
+        $lowercase = (bool) get_option( 'wordfence_case' );
+        $table     = $wpdb->base_prefix . ( $lowercase ? 'wfblockediplog' : 'wfBlockedIPLog' );
+        $exists    = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table;
+
+        if ( ! $exists ) {
+            return array(
+                'version'                    => WORDFENCE_VERSION,
+                'firewall_summary_available' => false,
+            );
+        }
+
+        $groupings = array(
+            'complex'     => array( 'fakegoogle', 'badpost', 'country', 'advanced', 'waf' ),
+            'brute_force' => array( 'throttle', 'brute' ),
+            'blocklist'   => array( 'blacklist', 'manual' ),
+        );
+        $windows = array( '24h' => 1, '7d' => 7, '30d' => 30 );
+
+        $summary = array();
+        $totals  = array( '24h' => 0, '7d' => 0, '30d' => 0 );
+
+        foreach ( $groupings as $group_key => $block_types ) {
+            $placeholders = implode( ', ', array_fill( 0, count( $block_types ), '%s' ) );
+            $summary[ $group_key ] = array();
+
+            foreach ( $windows as $window_key => $days ) {
+                $query = $wpdb->prepare(
+                    "SELECT SUM(blockCount) FROM {$table} WHERE unixday >= FLOOR(UNIX_TIMESTAMP(DATE_SUB(NOW(), interval %d day)) / 86400) AND blockType IN ({$placeholders})",
+                    array_merge( array( $days ), $block_types )
+                );
+                $count = (int) $wpdb->get_var( $query );
+
+                $summary[ $group_key ][ $window_key ] = $count;
+                $totals[ $window_key ]                += $count;
+            }
+        }
+
+        return array(
+            'version'                    => WORDFENCE_VERSION,
+            'firewall_summary_available' => true,
+            'firewall_summary'           => $summary,
+            'firewall_summary_totals'    => $totals,
         );
     }
 }
