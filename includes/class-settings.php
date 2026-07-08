@@ -28,7 +28,7 @@ class RSD_RB_Settings {
         register_setting( self::GROUP, 'rsd_rb_scan_frequency',   array( 'sanitize_callback' => array( __CLASS__, 'sanitize_frequency' ) ) );
         register_setting( self::GROUP, 'rsd_rb_folder_name',      array( 'sanitize_callback' => 'sanitize_text_field' ) );
         register_setting( self::GROUP, 'rsd_rb_retention_count',  array( 'sanitize_callback' => array( __CLASS__, 'sanitize_positive_int' ) ) );
-        register_setting( self::GROUP, 'rsd_rb_delete_local',     array( 'sanitize_callback' => array( __CLASS__, 'sanitize_bool' ) ) );
+        register_setting( self::GROUP, 'rsd_rb_local_retention_count', array( 'sanitize_callback' => array( __CLASS__, 'sanitize_local_retention_count' ) ) );
         register_setting( self::GROUP, 'rsd_rb_time_budget',      array( 'sanitize_callback' => array( __CLASS__, 'sanitize_time_budget' ) ) );
         register_setting( self::GROUP, 'rsd_rb_compress_enabled', array( 'sanitize_callback' => array( __CLASS__, 'sanitize_bool' ) ) );
         register_setting( self::GROUP, 'rsd_rb_max_concurrent_uploads', array( 'sanitize_callback' => array( __CLASS__, 'sanitize_max_concurrent_uploads' ) ) );
@@ -61,6 +61,12 @@ class RSD_RB_Settings {
     public static function sanitize_positive_int( $value ): int {
         $int = (int) $value;
         return $int > 0 ? $int : 7;
+    }
+
+    /** Unlike sanitize_positive_int(), 0 is a valid value here (delete every local backup immediately after upload). */
+    public static function sanitize_local_retention_count( $value ): int {
+        $int = (int) $value;
+        return $int >= 0 ? $int : 1;
     }
 
     public static function sanitize_time_budget( $value ): int {
@@ -147,8 +153,8 @@ class RSD_RB_Settings {
         return (int) get_option( 'rsd_rb_max_concurrent_uploads', 2 );
     }
 
-    public static function get_delete_local(): bool {
-        return (bool) get_option( 'rsd_rb_delete_local', false );
+    public static function get_local_retention_count(): int {
+        return (int) get_option( 'rsd_rb_local_retention_count', 1 );
     }
 
     /**

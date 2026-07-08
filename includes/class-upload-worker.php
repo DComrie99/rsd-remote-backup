@@ -225,7 +225,7 @@ class RSD_RB_Upload_Worker {
 
     private static function do_upload( RB_Provider $adapter, array $job, float $start, int $time_budget ): void {
         $job_id      = (int) $job['id'];
-        $filepath    = $job['filepath']; // Original .wpress — used for delete_local / display only.
+        $filepath    = $job['filepath']; // Original .wpress — used for the is_compressed check / display only.
         $manifest_id = (int) ( $job['manifest_id'] ?? 0 );
 
         // Resolve the file to actually stream: the original, or a compressed temp
@@ -436,18 +436,11 @@ class RSD_RB_Upload_Worker {
         }
         RSD_RB_Manifest::mark_zip_cleaned( $manifest_id ); // No-ops safely if no zip was ever created.
 
-        // Optional: delete local file after confirmed upload. This check holds
-        // regardless of the setting — never delete the original before a verified
-        // remote copy exists, which is guaranteed by this point in the call.
-        if ( RSD_RB_Settings::get_delete_local() && ! empty( $filepath ) ) {
-            if ( @unlink( $filepath ) ) {
-                RSD_RB_Queue::update_location( $job_id, RSD_RB_Queue::LOCATION_REMOTE );
-                RSD_RB_Manifest::mark_backup_cleaned( $manifest_id );
-                RSD_RB_Logger::info( 'Upload worker: deleted local file ' . basename( $filepath ) . ' after upload.' );
-            } else {
-                RSD_RB_Logger::warning( 'Upload worker: could not delete local file ' . basename( $filepath ) . '.' );
-            }
-        }
+        // Local retention: keep the configured number of most-recent, confirmed-
+        // uploaded backups on local disk, deleting older ones now that this job is
+        // also confirmed remote. Re-evaluates the whole 'both' set (not just this
+        // job), so it self-heals if the kept-count setting changes later too.
+        RSD_RB_Local_Retention::prune();
 
         RSD_RB_Manifest::mark_complete( $manifest_id );
     }

@@ -119,15 +119,14 @@ $current_provider = RSD_RB_Settings::get_provider();
                     </td>
                 </tr>
                 <tr>
-                    <th scope="row"><?php esc_html_e( 'Delete Local Backup After Upload', 'rsd-remote-backup' ); ?></th>
+                    <th scope="row"><?php esc_html_e( 'Keep Local Backups', 'rsd-remote-backup' ); ?></th>
                     <td>
-                        <label>
-                            <input type="checkbox" name="rsd_rb_delete_local" value="1"
-                                   <?php checked( RSD_RB_Settings::get_delete_local() ); ?> />
-                            <?php esc_html_e( 'Delete the local .wpress file once the upload is confirmed complete.', 'rsd-remote-backup' ); ?>
-                        </label>
+                        <input type="number" name="rsd_rb_local_retention_count" min="0" max="365"
+                               value="<?php echo esc_attr( RSD_RB_Settings::get_local_retention_count() ); ?>"
+                               class="small-text" />
+                        <p class="description"><?php esc_html_e( 'Number of most recent backups to keep on this server once they are confirmed uploaded. Older confirmed-uploaded backups are deleted automatically. Set to 0 to delete each backup locally as soon as its upload completes.', 'rsd-remote-backup' ); ?></p>
                         <p class="description rsd-rb-warning">
-                            <?php esc_html_e( '⚠ Irreversible. Leave disabled unless your cloud copy is your only required copy.', 'rsd-remote-backup' ); ?>
+                            <?php esc_html_e( '⚠ Irreversible. A local file is only ever deleted once a verified copy exists in the cloud.', 'rsd-remote-backup' ); ?>
                         </p>
                     </td>
                 </tr>

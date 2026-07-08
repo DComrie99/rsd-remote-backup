@@ -28,7 +28,7 @@ $options = array(
     'rsd_rb_scan_frequency',
     'rsd_rb_folder_name',
     'rsd_rb_retention_count',
-    'rsd_rb_delete_local',
+    'rsd_rb_local_retention_count',
     'rsd_rb_time_budget',
     'rsd_rb_google_client_id',
     'rsd_rb_google_client_secret',
