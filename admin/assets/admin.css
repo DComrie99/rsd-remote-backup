@@ -1,0 +1,104 @@
+/* ---- Header ---- */
+.rsd-rb-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.rsd-rb-header h1 {
+    margin: 0;
+    padding: 0;
+}
+
+.rsd-rb-header__logo {
+    width: 80px;
+    height: 80px;
+    object-fit: contain;
+}
+
+/* ---- Layout ---- */
+.rsd-rb-wrap .nav-tab-wrapper { margin-bottom: 0; }
+
+.rsd-rb-tab {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-top: none;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.rsd-rb-provider-section { margin-bottom: 24px; }
+
+.rsd-rb-provider-section details summary {
+    cursor: pointer;
+    color: #2271b1;
+    margin-bottom: 10px;
+}
+
+.rsd-rb-provider-section details ol { margin-left: 1.5em; }
+
+/* ---- Status badges ---- */
+.rsd-rb-status,
+.rsd-rb-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+}
+
+.rsd-rb-status--connected,
+.rsd-rb-badge--complete   { background: #d1e7dd; color: #0f5132; }
+.rsd-rb-status--disconnected { background: #f8d7da; color: #842029; }
+.rsd-rb-badge--pending    { background: #fff3cd; color: #664d03; }
+.rsd-rb-badge--uploading  { background: #cfe2ff; color: #084298; }
+.rsd-rb-badge--failed     { background: #f8d7da; color: #842029; }
+.rsd-rb-badge--cancelled  { background: #e2e3e5; color: #41464b; }
+
+/* ---- Location badges ---- */
+.rsd-rb-badge--both       { background: #d1e7dd; color: #0f5132; }
+.rsd-rb-badge--local      { background: #fff3cd; color: #664d03; }
+.rsd-rb-badge--remote     { background: #cfe2ff; color: #084298; }
+.rsd-rb-badge--none       { background: #f8d7da; color: #842029; }
+
+/* ---- Progress bar ---- */
+.rsd-rb-progress {
+    width: 120px;
+    height: 10px;
+    background: #e2e2e2;
+    border-radius: 5px;
+    overflow: hidden;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.rsd-rb-progress__bar {
+    height: 100%;
+    background: #2271b1;
+    border-radius: 5px;
+    transition: width .3s ease;
+}
+
+/* ---- Jobs table ---- */
+.rsd-rb-jobs-table { margin-top: 8px; font-size: 13px; }
+.rsd-rb-jobs-table th { white-space: nowrap; }
+.rsd-rb-error-snippet { color: #842029; cursor: help; }
+
+/* ---- Log panel ---- */
+.rsd-rb-log pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    font-size: 12px;
+    border-radius: 3px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* ---- Misc ---- */
+.rsd-rb-warning { color: #a00; }
