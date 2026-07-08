@@ -5,9 +5,10 @@ defined( 'ABSPATH' ) || exit;
  * REST API for the RSD Remote Backup plugin.
  *
  * Endpoints:
- *   GET  /wp-json/rsd-rb/v1/status   — job queue + site/provider metadata
- *   POST /wp-json/rsd-rb/v1/trigger  — run scanner and schedule pending uploads
- *   POST /wp-json/rsd-rb/v1/resync   — reconcile DB records against remote + local reality
+ *   GET  /wp-json/rsd-rb/v1/status        — job queue + site/provider metadata
+ *   POST /wp-json/rsd-rb/v1/trigger       — run scanner and schedule pending uploads
+ *   POST /wp-json/rsd-rb/v1/resync        — reconcile DB records against remote + local reality
+ *   GET  /wp-json/rsd-rb/v1/server-stats  — core WP/server health + plugin-specific stats (e.g. WP Rocket Insights)
  *
  * Authentication: send the raw API key in either header:
  *   X-RSD-API-Key: <key>
@@ -45,6 +46,12 @@ class RSD_RB_Rest_Api {
         register_rest_route( self::NAMESPACE, '/resync', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( __CLASS__, 'resync' ),
+            'permission_callback' => array( __CLASS__, 'check_api_key' ),
+        ) );
+
+        register_rest_route( self::NAMESPACE, '/server-stats', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( __CLASS__, 'get_server_stats' ),
             'permission_callback' => array( __CLASS__, 'check_api_key' ),
         ) );
     }
@@ -165,6 +172,17 @@ class RSD_RB_Rest_Api {
             'stalled_reset' => $reset,
             'message'       => $count . ' upload job(s) scheduled.',
         ), 200 );
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /server-stats
+
+    public static function get_server_stats( WP_REST_Request $request ): WP_REST_Response {
+        if ( ! RSD_RB_License::is_valid() ) {
+            return new WP_REST_Response( array( 'error' => 'Plugin is not licensed.' ), 403 );
+        }
+
+        return new WP_REST_Response( RSD_RB_Server_Stats::collect(), 200 );
     }
 
     // -------------------------------------------------------------------------

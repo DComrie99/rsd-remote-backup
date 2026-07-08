@@ -398,6 +398,70 @@ $current_provider = RSD_RB_Settings::get_provider();
             </tr>
         </table>
 
+        <!-- Server Stats -->
+        <h2><?php esc_html_e( 'Server Stats', 'rsd-remote-backup' ); ?></h2>
+        <?php
+        $server_stats = RSD_RB_Server_Stats::collect();
+        $core_stats   = $server_stats['core'];
+        $disk_free    = $core_stats['disk_free_bytes'];
+        $disk_total   = $core_stats['disk_total_bytes'];
+        ?>
+        <table class="form-table" role="presentation">
+            <tr>
+                <th scope="row"><?php esc_html_e( 'PHP / WordPress / MySQL', 'rsd-remote-backup' ); ?></th>
+                <td><?php echo esc_html( sprintf( 'PHP %s · WordPress %s · MySQL %s', $core_stats['php_version'], $core_stats['wp_version'], $core_stats['mysql_version'] ) ); ?></td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'Disk Space', 'rsd-remote-backup' ); ?></th>
+                <td>
+                    <?php if ( null !== $disk_free && null !== $disk_total ) : ?>
+                        <?php echo esc_html( sprintf( '%s free of %s', size_format( $disk_free, 2 ), size_format( $disk_total, 2 ) ) ); ?>
+                    <?php else : ?>
+                        <em><?php esc_html_e( 'Unavailable — disk_free_space()/disk_total_space() disabled on this host.', 'rsd-remote-backup' ); ?></em>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'Memory Limit / Execution Time', 'rsd-remote-backup' ); ?></th>
+                <td><?php echo esc_html( sprintf( '%s memory limit · %s execution time', $core_stats['memory_limit'], $core_stats['max_execution_time'] > 0 ? $core_stats['max_execution_time'] . 's' : esc_html__( 'unlimited', 'rsd-remote-backup' ) ) ); ?></td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'Theme / Active Plugins', 'rsd-remote-backup' ); ?></th>
+                <td><?php echo esc_html( sprintf( '%s · %d active plugin(s)%s', $core_stats['active_theme'], $core_stats['active_plugins_count'], $core_stats['multisite'] ? ' · ' . esc_html__( 'Multisite', 'rsd-remote-backup' ) : '' ) ); ?></td>
+            </tr>
+            <?php if ( isset( $server_stats['plugins']['wp_rocket'] ) ) : $wpr = $server_stats['plugins']['wp_rocket']; ?>
+                <tr>
+                    <th scope="row"><?php esc_html_e( 'WP Rocket', 'rsd-remote-backup' ); ?></th>
+                    <td>
+                        <?php echo esc_html( sprintf( 'v%s', $wpr['version'] ) ); ?>
+                        &nbsp;
+                        <?php if ( ! $wpr['insights_available'] ) : ?>
+                            <em><?php esc_html_e( 'Rocket Insights not available on this site.', 'rsd-remote-backup' ); ?></em>
+                        <?php elseif ( null === $wpr['global_score'] ) : ?>
+                            <em><?php esc_html_e( 'Rocket Insights enabled — no completed page tests yet.', 'rsd-remote-backup' ); ?></em>
+                        <?php else :
+                            $score      = $wpr['global_score'];
+                            $score_css  = $score >= 90 ? 'rsd-rb-badge--complete' : ( $score >= 50 ? 'rsd-rb-badge--pending' : 'rsd-rb-badge--failed' );
+                        ?>
+                            <span class="rsd-rb-badge <?php echo esc_attr( $score_css ); ?>">
+                                <?php echo esc_html( sprintf( /* translators: %d: score out of 100 */ __( 'Insights score: %d/100', 'rsd-remote-backup' ), $score ) ); ?>
+                            </span>
+                            <small>
+                                <?php
+                                printf(
+                                    /* translators: 1: number of completed page tests 2: total pages monitored */
+                                    esc_html__( '(%1$d of %2$d monitored page(s) completed)', 'rsd-remote-backup' ),
+                                    (int) $wpr['pages_completed'],
+                                    (int) $wpr['pages_monitored']
+                                );
+                                ?>
+                            </small>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+            <?php endif; ?>
+        </table>
+
         <!-- Job queue -->
         <h2><?php esc_html_e( 'Upload Queue', 'rsd-remote-backup' ); ?></h2>
         <?php
@@ -568,6 +632,13 @@ $current_provider = RSD_RB_Settings::get_provider();
                 <td>
                     <code><?php echo esc_html( rest_url( 'rsd-rb/v1/trigger' ) ); ?></code>
                     <p class="description"><?php esc_html_e( 'POST — runs the backup scanner and schedules any pending uploads.', 'rsd-remote-backup' ); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'Server stats endpoint', 'rsd-remote-backup' ); ?></th>
+                <td>
+                    <code><?php echo esc_html( rest_url( 'rsd-rb/v1/server-stats' ) ); ?></code>
+                    <p class="description"><?php esc_html_e( 'GET — core WP/server health plus plugin-specific stats (e.g. WP Rocket Insights score).', 'rsd-remote-backup' ); ?></p>
                 </td>
             </tr>
             <tr>
