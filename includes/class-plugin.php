@@ -8,6 +8,9 @@ class RSD_RB_Plugin {
 
     private static ?RSD_RB_Plugin $instance = null;
 
+    /** @var \YahnisElsts\PluginUpdateChecker\v5\Vcs\PluginUpdateChecker|null Set in register_update_checker(); null if !is_admin(). */
+    private $update_checker = null;
+
     public static function get_instance(): self {
         if ( null === self::$instance ) {
             self::$instance = new self();
@@ -120,6 +123,13 @@ class RSD_RB_Plugin {
         // Use an uploaded release zip asset, not GitHub's auto-generated source archive
         // (which lacks the required top-level "rsd-remote-backup/" folder name).
         $update_checker->getVcsApi()->enableReleaseAssets();
+
+        $this->update_checker = $update_checker;
+    }
+
+    /** Null if the current request isn't is_admin() — register_update_checker() only builds it there. */
+    public function get_update_checker() {
+        return $this->update_checker;
     }
 
     // -------------------------------------------------------------------------
@@ -373,8 +383,43 @@ class RSD_RB_Plugin {
                 $probe_token = wp_generate_password( 12, false );
                 set_transient( 'rsd_rb_diag_probe_transient', $probe_token, 5 * MINUTE_IN_SECONDS );
                 update_option( 'rsd_rb_diag_probe_option', $probe_token, false );
+                // Raw object-cache API, bypassing the Transients wrapper entirely — separates
+                // "the cache backend itself doesn't persist" from "something about how
+                // Transients specifically uses it doesn't persist."
+                wp_cache_set( 'rsd_rb_diag_probe', $probe_token, 'rsd-rb-diag', 5 * MINUTE_IN_SECONDS );
                 RSD_RB_Logger::info( 'Transient diagnostic probe set: ' . $probe_token );
                 wp_redirect( add_query_arg( array( 'rb_notice' => 'transient_diag_set', 'rb_tab' => 'status' ), $redirect ) );
+                exit;
+
+            case 'force_update_check':
+                if ( ! wp_verify_nonce( $nonce, 'rsd_rb_force_update_check' ) ) {
+                    wp_die( esc_html__( 'Security check failed.', 'rsd-remote-backup' ) );
+                }
+                // Bypasses PUC's own 12-hour (admin_init) / 1-hour (Plugins page) throttle —
+                // its StateStore persists via update_site_option(), a real DB write, so this
+                // is independent of the transient-persistence question above; it exists to
+                // rule out "just hasn't rechecked yet" before suspecting anything deeper.
+                $checker = $this->get_update_checker();
+                $errors  = array();
+                if ( $checker ) {
+                    $checker->checkForUpdates();
+                    // PUC's collected API errors (e.g. the outbound request to api.github.com
+                    // itself failing) only live on this in-memory checker instance — they're
+                    // gone by the next page load unless we persist them here. Stored as a
+                    // plain option (confirmed reliable on this site by the transient-diagnostic
+                    // option control above), not a transient.
+                    foreach ( $checker->getLastRequestApiErrors() as $entry ) {
+                        $error = $entry['error'];
+                        $msg   = $error instanceof WP_Error ? $error->get_error_message() : (string) $error;
+                        if ( ! empty( $entry['url'] ) ) {
+                            $msg .= ' (' . $entry['url'] . ')';
+                        }
+                        $errors[] = $msg;
+                    }
+                }
+                update_option( 'rsd_rb_diag_update_check_errors', $errors, false );
+                RSD_RB_Logger::info( 'Manual update check forced.' . ( $errors ? ' Errors: ' . implode( ' | ', $errors ) : ' No API errors reported.' ) );
+                wp_redirect( add_query_arg( array( 'rb_notice' => 'update_check_forced', 'rb_tab' => 'status' ), $redirect ) );
                 exit;
 
             case 'regenerate_api_key':

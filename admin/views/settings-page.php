@@ -794,8 +794,29 @@ $current_provider = RSD_RB_Settings::get_provider();
             <tr>
                 <th scope="row"><?php esc_html_e( 'object-cache.php drop-in', 'rsd-remote-backup' ); ?></th>
                 <td>
-                    <?php if ( file_exists( WP_CONTENT_DIR . '/object-cache.php' ) ) : ?>
+                    <?php
+                    $rsd_rb_oc_path = WP_CONTENT_DIR . '/object-cache.php';
+                    if ( file_exists( $rsd_rb_oc_path ) ) :
+                        $rsd_rb_oc_data = get_file_data( $rsd_rb_oc_path, array(
+                            'name'    => 'Plugin Name',
+                            'version' => 'Version',
+                        ) );
+                        ?>
                         <span class="rsd-rb-badge rsd-rb-badge--uploading"><?php esc_html_e( 'Present', 'rsd-remote-backup' ); ?></span>
+                        <?php if ( '' !== $rsd_rb_oc_data['name'] ) : ?>
+                            &nbsp;<?php echo esc_html( $rsd_rb_oc_data['name'] ); ?><?php echo $rsd_rb_oc_data['version'] ? ' v' . esc_html( $rsd_rb_oc_data['version'] ) : ''; ?>
+                        <?php endif; ?>
+                        <?php if ( isset( $GLOBALS['wp_object_cache'] ) && is_object( $GLOBALS['wp_object_cache'] ) ) : ?>
+                            <p class="description">
+                                <?php
+                                printf(
+                                    /* translators: %s: PHP class name of the loaded object cache */
+                                    esc_html__( 'Loaded cache class: %s', 'rsd-remote-backup' ),
+                                    '<code>' . esc_html( get_class( $GLOBALS['wp_object_cache'] ) ) . '</code>'
+                                );
+                                ?>
+                            </p>
+                        <?php endif; ?>
                     <?php else : ?>
                         <span class="rsd-rb-badge rsd-rb-badge--complete"><?php esc_html_e( 'Not present', 'rsd-remote-backup' ); ?></span>
                     <?php endif; ?>
@@ -830,10 +851,102 @@ $current_provider = RSD_RB_Settings::get_provider();
                 </td>
             </tr>
             <tr>
+                <th scope="row"><?php esc_html_e( 'Raw object cache round-trip test', 'rsd-remote-backup' ); ?></th>
+                <td>
+                    <?php
+                    $rsd_rb_diag_cache_actual = wp_cache_get( 'rsd_rb_diag_probe', 'rsd-rb-diag' );
+
+                    if ( '' === $rsd_rb_diag_expected ) :
+                        esc_html_e( 'Not run yet — uses the same probe and "Run Test" button above.', 'rsd-remote-backup' );
+                    elseif ( false !== $rsd_rb_diag_cache_actual && hash_equals( $rsd_rb_diag_expected, (string) $rsd_rb_diag_cache_actual ) ) :
+                        ?>
+                        <span class="rsd-rb-badge rsd-rb-badge--complete"><?php esc_html_e( 'PASS', 'rsd-remote-backup' ); ?></span>
+                        <?php esc_html_e( 'The object cache backend itself persists correctly — if the transient test above still fails, the problem is specific to how Transients uses the cache, not the cache connection itself.', 'rsd-remote-backup' ); ?>
+                        <?php
+                    else :
+                        ?>
+                        <span class="rsd-rb-badge rsd-rb-badge--failed"><?php esc_html_e( 'FAIL', 'rsd-remote-backup' ); ?></span>
+                        <?php esc_html_e( 'The object cache backend itself is not persisting values between requests — this points at the cache connection (e.g. Redis/Memcached unreachable or misconfigured) rather than anything in this plugin.', 'rsd-remote-backup' ); ?>
+                        <?php
+                    endif;
+                    ?>
+                    <p class="description">
+                        <?php esc_html_e( 'Calls wp_cache_get()/wp_cache_set() directly, bypassing the Transients API entirely, using the same probe value as the test above.', 'rsd-remote-backup' ); ?>
+                    </p>
+                </td>
+            </tr>
+            <tr>
                 <th scope="row"><?php esc_html_e( 'Page render time', 'rsd-remote-backup' ); ?></th>
                 <td>
                     <code><?php echo esc_html( current_time( 'mysql' ) ); ?></code>
                     <p class="description"><?php esc_html_e( 'Changes on every real page load. If this value ever looks frozen across repeated reloads, a full-page cache is serving a stale copy of this admin screen — a different problem from transient persistence, but one that could also explain inconsistent behaviour.', 'rsd-remote-backup' ); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'Update checker status', 'rsd-remote-backup' ); ?></th>
+                <td>
+                    <?php
+                    $rsd_rb_checker = RSD_RB_Plugin::get_instance()->get_update_checker();
+                    if ( ! $rsd_rb_checker ) :
+                        esc_html_e( 'Update checker not initialised on this request.', 'rsd-remote-backup' );
+                    else :
+                        $rsd_rb_update_state = $rsd_rb_checker->getUpdateState();
+                        $rsd_rb_available    = $rsd_rb_checker->getUpdate();
+                        ?>
+                        <p>
+                            <?php
+                            printf(
+                                /* translators: %s: installed plugin version */
+                                esc_html__( 'Installed version: %s', 'rsd-remote-backup' ),
+                                '<code>' . esc_html( RSD_RB_VERSION ) . '</code>'
+                            );
+                            ?>
+                        </p>
+                        <p>
+                            <?php
+                            if ( $rsd_rb_update_state->getLastCheck() > 0 ) {
+                                printf(
+                                    /* translators: 1: human-readable time since last check, 2: last version GitHub reported at that check */
+                                    esc_html__( 'Last checked: %1$s ago (GitHub reported %2$s as latest at that time).', 'rsd-remote-backup' ),
+                                    esc_html( human_time_diff( $rsd_rb_update_state->getLastCheck() ) ),
+                                    '<code>' . esc_html( $rsd_rb_update_state->getCheckedVersion() ?: '?' ) . '</code>'
+                                );
+                            } else {
+                                esc_html_e( 'Never checked yet on this site.', 'rsd-remote-backup' );
+                            }
+                            ?>
+                        </p>
+                        <p>
+                            <?php if ( $rsd_rb_available ) : ?>
+                                <span class="rsd-rb-badge rsd-rb-badge--uploading"><?php esc_html_e( 'Update available', 'rsd-remote-backup' ); ?></span>
+                                <?php echo esc_html( $rsd_rb_available->version ); ?>
+                            <?php else : ?>
+                                <span class="rsd-rb-badge rsd-rb-badge--complete"><?php esc_html_e( 'Up to date (as of last check)', 'rsd-remote-backup' ); ?></span>
+                            <?php endif; ?>
+                        </p>
+                        <p class="description">
+                            <?php esc_html_e( 'This state is stored in a real WordPress option (update_site_option), not a transient — so if the round-trip test above fails while this still updates correctly, that narrows the problem to transients specifically rather than all persistent storage on this site.', 'rsd-remote-backup' ); ?>
+                        </p>
+                        <?php
+                        $rsd_rb_update_errors = get_option( 'rsd_rb_diag_update_check_errors', array() );
+                        if ( ! empty( $rsd_rb_update_errors ) ) :
+                            ?>
+                            <div class="notice notice-error inline" style="margin:8px 0;">
+                                <p><strong><?php esc_html_e( 'The last forced check hit an API error:', 'rsd-remote-backup' ); ?></strong></p>
+                                <ul style="list-style:disc;margin-left:20px;">
+                                    <?php foreach ( $rsd_rb_update_errors as $rsd_rb_update_error ) : ?>
+                                        <li><code><?php echo esc_html( $rsd_rb_update_error ); ?></code></li>
+                                    <?php endforeach; ?>
+                                </ul>
+                                <p class="description"><?php esc_html_e( 'If this mentions a connection failure or timeout reaching api.github.com, this site\'s outbound requests to GitHub are being blocked or are failing — check with the host whether outbound HTTPS to github.com/api.github.com is allowed (some hosts only allowlist wordpress.org).', 'rsd-remote-backup' ); ?></p>
+                            </div>
+                        <?php endif; ?>
+                        <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=rsd-remote-backup&rb_action=force_update_check' ), 'rsd_rb_force_update_check' ) ); ?>"
+                           class="button button-secondary"><?php esc_html_e( 'Force Check Now', 'rsd-remote-backup' ); ?></a>
+                        <p class="description">
+                            <?php esc_html_e( 'Bypasses the normal 12-hour (or 1-hour, on the Plugins page) throttle and queries GitHub immediately — use this before suspecting anything is actually wrong.', 'rsd-remote-backup' ); ?>
+                        </p>
+                    <?php endif; ?>
                 </td>
             </tr>
         </table>

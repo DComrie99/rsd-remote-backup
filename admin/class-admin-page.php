@@ -123,6 +123,9 @@ class RSD_RB_Admin_Page {
                 case 'transient_diag_set':
                     add_settings_error( 'RSD_RB', 'transient_diag_set', __( 'Diagnostic probe set — see the result in Environment Diagnostics below.', 'rsd-remote-backup' ), 'info' );
                     break;
+                case 'update_check_forced':
+                    add_settings_error( 'RSD_RB', 'update_check_forced', __( 'Update check forced — see the result in Environment Diagnostics below.', 'rsd-remote-backup' ), 'info' );
+                    break;
                 case 'compression_benchmark_done':
                     add_settings_error( 'RSD_RB', 'compression_benchmark_done', __( 'Compression benchmark complete — see the Compression section below.', 'rsd-remote-backup' ), 'success' );
                     break;
