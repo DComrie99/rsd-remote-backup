@@ -41,6 +41,7 @@ $options = array(
     'rsd_rb_seen_files',
     'rsd_rb_api_key',
     'rsd_rb_last_scan',
+    'rsd_rb_last_cron_heartbeat',
 );
 
 foreach ( $options as $option ) {

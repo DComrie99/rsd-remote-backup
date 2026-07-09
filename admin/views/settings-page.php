@@ -347,6 +347,50 @@ $current_provider = RSD_RB_Settings::get_provider();
             </a>
         </p>
 
+        <!-- Background Processing -->
+        <h2><?php esc_html_e( 'Background Processing', 'rsd-remote-backup' ); ?></h2>
+        <table class="form-table" role="presentation">
+            <tr>
+                <th scope="row"><?php esc_html_e( 'Action Scheduler', 'rsd-remote-backup' ); ?></th>
+                <td>
+                    <?php if ( function_exists( 'as_enqueue_async_action' ) ) : ?>
+                        <?php esc_html_e( 'Active', 'rsd-remote-backup' ); ?>
+                    <?php else : ?>
+                        <span class="rsd-rb-warning"><?php esc_html_e( 'Not active', 'rsd-remote-backup' ); ?></span>
+                        <p class="description">
+                            <?php esc_html_e( 'Uploads are falling back to wp_schedule_single_event, which only runs when something visits the site — on a low-traffic site this can stall an upload for hours between ticks, with no error logged.', 'rsd-remote-backup' ); ?>
+                            <br>
+                            <?php esc_html_e( 'Install Action Scheduler (clone the GitHub repo below into this plugin\'s vendor/ folder) or install WooCommerce (which bundles it) to fix this:', 'rsd-remote-backup' ); ?>
+                            <br>
+                            <code>git clone https://github.com/woocommerce/action-scheduler.git vendor/action-scheduler</code>
+                        </p>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'Last WP-Cron Activity', 'rsd-remote-backup' ); ?></th>
+                <td>
+                    <?php
+                    $last_heartbeat = get_option( 'rsd_rb_last_cron_heartbeat' );
+                    if ( empty( $last_heartbeat ) ) :
+                    ?>
+                        <em><?php esc_html_e( 'Never recorded — wp-cron.php may not be reaching this plugin at all.', 'rsd-remote-backup' ); ?></em>
+                    <?php else : ?>
+                        <?php
+                        printf(
+                            /* translators: %s: human-readable time since last WP-Cron request */
+                            esc_html__( '%s ago', 'rsd-remote-backup' ),
+                            esc_html( human_time_diff( (int) $last_heartbeat ) )
+                        );
+                        ?>
+                    <?php endif; ?>
+                    <p class="description">
+                        <?php esc_html_e( 'Updated every time a WP-Cron request reaches this plugin, whether or not it finds anything due. If this is stale despite regular site traffic, WP-Cron is likely blocked or disabled on this host.', 'rsd-remote-backup' ); ?>
+                    </p>
+                </td>
+            </tr>
+        </table>
+
         <!-- Compression -->
         <h2><?php esc_html_e( 'Compression', 'rsd-remote-backup' ); ?></h2>
         <table class="form-table" role="presentation">

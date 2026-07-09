@@ -253,14 +253,17 @@ class RSD_RB_Upload_Worker {
                 ? RSD_RB_Provider_OneDrive::CHUNK_SIZE
                 : 8 * 1024 * 1024 );
 
+        // Name the remote object after the ORIGINAL filename + a clean extension
+        // (e.g. "backup.wpress.gz"), not the local temp path's uniqid-suffixed
+        // name — this is what a human browsing the OneDrive folder should see.
+        // Computed unconditionally (not just when opening the first session)
+        // because a session-expiry restart below also needs it.
+        $remote_name = basename( $filepath );
+        if ( $upload_path !== $filepath && ! empty( $compression['method'] ) ) {
+            $remote_name .= RSD_RB_Compressor::extension_for( $compression['method'] );
+        }
+
         if ( empty( $session_url ) ) {
-            // Name the remote object after the ORIGINAL filename + a clean extension
-            // (e.g. "backup.wpress.gz"), not the local temp path's uniqid-suffixed
-            // name — this is what a human browsing the OneDrive folder should see.
-            $remote_name = basename( $filepath );
-            if ( $upload_path !== $filepath && ! empty( $compression['method'] ) ) {
-                $remote_name .= RSD_RB_Compressor::extension_for( $compression['method'] );
-            }
             $session_start = microtime( true );
             $session       = $adapter->begin_upload( $upload_path, $remote_name );
             $session_url   = $session['session_url'];
@@ -289,6 +292,11 @@ class RSD_RB_Upload_Worker {
             'filesize'    => $transfer_size,
         );
 
+        // Tracks whether this tick has already opened one replacement session —
+        // see the 401 handling below. Only one auto-restart per tick; a brand
+        // new session dying immediately is a real problem, not routine expiry.
+        $session_restarted = false;
+
         // --- Chunked upload loop ---
         while ( ! feof( $fh ) ) {
             // Stop if we're approaching the time budget.
@@ -310,8 +318,45 @@ class RSD_RB_Upload_Worker {
                 break;
             }
 
-            // Retry once on 401 (refresh token then retry same chunk).
-            $result = self::upload_chunk_with_refresh( $adapter, $session_descriptor, $bytes_sent, $bytes, $job_id );
+            try {
+                $result = $adapter->upload_chunk( $session_descriptor, $bytes_sent, $bytes );
+            } catch ( RuntimeException $e ) {
+                if ( $session_restarted || false === strpos( $e->getMessage(), '401' ) ) {
+                    throw $e;
+                }
+
+                // A 401 on a chunk PUT means the upload SESSION url itself was
+                // rejected — not our OAuth token. Neither provider's
+                // upload_chunk() sends an Authorization header on the resumable
+                // session PUT at all (both createUploadSession/session URLs are
+                // pre-authenticated by the provider), so refreshing our token and
+                // retrying the identical request — the previous behaviour here —
+                // can never succeed. Confirmed via a live incident: three
+                // overnight uploads each refreshed their token successfully,
+                // retried, hit the exact same 401 again, and repeated that until
+                // all 5 attempts were burned and the jobs failed — recoverable
+                // only by an admin manually retrying, which happens to clear
+                // session_url as a side effect and let them succeed instantly.
+                // Do that automatically instead: discard the dead session and
+                // open a fresh one, restarting the transfer from byte 0 (a new
+                // session cannot resume an old one's offset). Deliberately NOT
+                // routed through mark_error()/attempts — this is routine session
+                // expiry, not a real failure, same convention as the stale-
+                // session hard reset in RSD_RB_Queue::reset_stalled().
+                RSD_RB_Logger::warning( sprintf(
+                    'Upload worker: job #%d upload session rejected (HTTP 401) — session expired, starting a new one (not counted as a failed attempt).',
+                    $job_id
+                ) );
+
+                $new_session = $adapter->begin_upload( $upload_path, $remote_name );
+                $session_url = $new_session['session_url'];
+                $session_descriptor['session_url'] = $session_url;
+                $bytes_sent = 0;
+                fseek( $fh, 0 );
+                RSD_RB_Queue::update_progress( $job_id, $session_url, $bytes_sent );
+                $session_restarted = true;
+                continue;
+            }
 
             if ( 'complete' === $result['status'] ) {
                 fclose( $fh );
@@ -382,26 +427,6 @@ class RSD_RB_Upload_Worker {
         RSD_RB_Queue::set_upload_path( $job_id, $result['path'], $result );
 
         return array( $result['path'], $result );
-    }
-
-    private static function upload_chunk_with_refresh(
-        RB_Provider $adapter,
-        array $session,
-        int $offset,
-        string $bytes,
-        int $job_id
-    ): array {
-        try {
-            return $adapter->upload_chunk( $session, $offset, $bytes );
-        } catch ( RuntimeException $e ) {
-            // On 401 attempt a token refresh and retry once.
-            if ( false !== strpos( $e->getMessage(), '401' ) ) {
-                RSD_RB_Logger::info( 'Upload worker: 401 on job #' . $job_id . ' — refreshing token and retrying chunk.' );
-                $adapter->refresh_access_token();
-                return $adapter->upload_chunk( $session, $offset, $bytes );
-            }
-            throw $e;
-        }
     }
 
     private static function on_complete( int $job_id, int $manifest_id, ?string $remote_id, string $filepath, string $upload_path, int $transfer_size, ?int $remote_size, RB_Provider $adapter ): void {

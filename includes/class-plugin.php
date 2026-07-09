@@ -61,6 +61,45 @@ class RSD_RB_Plugin {
         // Download worker (download & stage for restore) — AS hook + WP-Cron fallback
         add_action( RSD_RB_Download_Worker::AS_HOOK, array( $this, 'run_download_worker' ) );
         add_action( RSD_RB_Download_Worker::CRON_HOOK, array( $this, 'run_download_worker' ) );
+
+        // WP-Cron health diagnostic — see record_cron_heartbeat() docblock.
+        add_action( 'shutdown', array( $this, 'record_cron_heartbeat' ) );
+    }
+
+    /**
+     * Records that a WP-Cron request reached PHP shutdown, and surfaces any
+     * fatal error that happened during it. Added to diagnose sites where
+     * wp-cron.php returns a normal 200 response (so it's clearly reachable)
+     * but scheduled jobs never advance — a 200 only proves the HTTP request
+     * completed, not that WordPress's cron batch ran every due hook to
+     * completion. If some OTHER plugin's cron hook fatals partway through the
+     * same batch, everything scheduled after it in that request — including
+     * this plugin's own upload continuation — silently never runs, and that
+     * fatal would normally only show up in the server's PHP error log, which
+     * isn't always accessible. The 'shutdown' action still fires even after a
+     * fatal error, so this surfaces it directly in our own admin log instead.
+     *
+     * Deliberately scoped to DOING_CRON only — this isn't meant to catch
+     * fatals on normal page loads, just to answer "is WP-Cron actually
+     * completing its batch on this site."
+     */
+    public function record_cron_heartbeat(): void {
+        if ( ! defined( 'DOING_CRON' ) || ! DOING_CRON ) {
+            return;
+        }
+
+        update_option( 'rsd_rb_last_cron_heartbeat', time(), false );
+
+        $error = error_get_last();
+        $fatal_types = array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR );
+        if ( $error && in_array( $error['type'], $fatal_types, true ) ) {
+            RSD_RB_Logger::error( sprintf(
+                'WP-Cron: fatal error during this cron run — %s in %s:%d. This can silently stop OTHER due cron jobs (including upload continuations) from running for the rest of that batch, even though wp-cron.php itself returns a normal response.',
+                $error['message'],
+                basename( $error['file'] ),
+                $error['line']
+            ) );
+        }
     }
 
     // -------------------------------------------------------------------------
