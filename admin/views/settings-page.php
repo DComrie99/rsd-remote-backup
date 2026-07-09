@@ -774,6 +774,70 @@ $current_provider = RSD_RB_Settings::get_provider();
             </tr>
         </table>
 
+        <!-- Environment Diagnostics -->
+        <h2><?php esc_html_e( 'Environment Diagnostics', 'rsd-remote-backup' ); ?></h2>
+        <p class="description">
+            <?php esc_html_e( 'Use this if a feature that relies on temporary storage (OAuth connect, API key reveal) behaves inconsistently on this specific site — it tests whether WordPress transients actually survive between page loads here.', 'rsd-remote-backup' ); ?>
+        </p>
+        <table class="form-table" role="presentation">
+            <tr>
+                <th scope="row"><?php esc_html_e( 'External object cache', 'rsd-remote-backup' ); ?></th>
+                <td>
+                    <?php if ( wp_using_ext_object_cache() ) : ?>
+                        <span class="rsd-rb-badge rsd-rb-badge--uploading"><?php esc_html_e( 'Active', 'rsd-remote-backup' ); ?></span>
+                    <?php else : ?>
+                        <span class="rsd-rb-badge rsd-rb-badge--complete"><?php esc_html_e( 'Not active (using database)', 'rsd-remote-backup' ); ?></span>
+                    <?php endif; ?>
+                    <p class="description"><?php esc_html_e( 'If active and misconfigured or unreachable, transients can silently fail to persist between requests — this is the leading suspect when a feature works fine on other sites but not this one.', 'rsd-remote-backup' ); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'object-cache.php drop-in', 'rsd-remote-backup' ); ?></th>
+                <td>
+                    <?php if ( file_exists( WP_CONTENT_DIR . '/object-cache.php' ) ) : ?>
+                        <span class="rsd-rb-badge rsd-rb-badge--uploading"><?php esc_html_e( 'Present', 'rsd-remote-backup' ); ?></span>
+                    <?php else : ?>
+                        <span class="rsd-rb-badge rsd-rb-badge--complete"><?php esc_html_e( 'Not present', 'rsd-remote-backup' ); ?></span>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'Transient round-trip test', 'rsd-remote-backup' ); ?></th>
+                <td>
+                    <?php
+                    $rsd_rb_diag_expected = get_option( 'rsd_rb_diag_probe_option', '' );
+                    $rsd_rb_diag_actual   = get_transient( 'rsd_rb_diag_probe_transient' );
+
+                    if ( '' === $rsd_rb_diag_expected ) :
+                        esc_html_e( 'Not run yet.', 'rsd-remote-backup' );
+                    elseif ( false !== $rsd_rb_diag_actual && hash_equals( $rsd_rb_diag_expected, (string) $rsd_rb_diag_actual ) ) :
+                        ?>
+                        <span class="rsd-rb-badge rsd-rb-badge--complete"><?php esc_html_e( 'PASS', 'rsd-remote-backup' ); ?></span>
+                        <?php esc_html_e( 'The transient survived the redirect and matched the value written just before it.', 'rsd-remote-backup' ); ?>
+                        <?php
+                    else :
+                        ?>
+                        <span class="rsd-rb-badge rsd-rb-badge--failed"><?php esc_html_e( 'FAIL', 'rsd-remote-backup' ); ?></span>
+                        <?php esc_html_e( 'The transient was gone (or wrong) on the very next page load — the same failure mode as the OAuth/API key issues.', 'rsd-remote-backup' ); ?>
+                        <?php
+                    endif;
+                    ?>
+                    <p class="description">
+                        <?php esc_html_e( '"Run Test" redirects the page — the click and the result shown above are two separate requests, deliberately mirroring how OAuth connect and API key reveal actually behave.', 'rsd-remote-backup' ); ?>
+                    </p>
+                    <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=rsd-remote-backup&rb_action=run_transient_diag' ), 'rsd_rb_run_transient_diag' ) ); ?>"
+                       class="button button-secondary"><?php esc_html_e( 'Run Test', 'rsd-remote-backup' ); ?></a>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'Page render time', 'rsd-remote-backup' ); ?></th>
+                <td>
+                    <code><?php echo esc_html( current_time( 'mysql' ) ); ?></code>
+                    <p class="description"><?php esc_html_e( 'Changes on every real page load. If this value ever looks frozen across repeated reloads, a full-page cache is serving a stale copy of this admin screen — a different problem from transient persistence, but one that could also explain inconsistent behaviour.', 'rsd-remote-backup' ); ?></p>
+                </td>
+            </tr>
+        </table>
+
     </div><!-- #tab-status -->
 
 </div><!-- .rsd-rb-wrap -->

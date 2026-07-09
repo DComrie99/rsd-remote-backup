@@ -38,6 +38,16 @@ class RSD_RB_OAuth {
         delete_transient( 'rsd_rb_oauth_state_' . $provider_key );
 
         if ( false === $expected || ! hash_equals( (string) $expected, $returned_state ) ) {
+            // TEMPORARY diagnostic — remove once the root cause of the 2026-07-09 OneDrive
+            // state-mismatch investigation is confirmed. These are one-time nonces, not
+            // long-lived secrets, so logging the raw values here is safe.
+            RSD_RB_Logger::error( sprintf(
+                'OAuth state validate failed for %s — transient %s; expected=%s; returned=%s.',
+                $provider_key,
+                ( false === $expected ? 'MISSING/EXPIRED' : 'present' ),
+                ( false === $expected ? '(none)' : $expected ),
+                $returned_state
+            ) );
             throw new RuntimeException( 'OAuth state mismatch — possible CSRF attempt.' );
         }
     }

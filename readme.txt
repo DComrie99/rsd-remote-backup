@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.3
+Stable tag: 0.7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,10 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.7.4 =
+* New: "Environment Diagnostics" panel on the Status tab — reports whether an external object cache is active, whether an object-cache.php drop-in is present, a cross-request transient round-trip test, and a live page-render timestamp. For diagnosing sites where OAuth connect or the API key reveal silently fail due to transients not persisting between requests.
+* Diagnostic logging added to OAuth state validation (logs whether the stored state was missing/expired vs. present-but-mismatched) to help pin down the same class of issue.
 
 = 0.7.2 =
 * New: server-stats now also reports a Wordfence collector when Wordfence is active — reimplements Wordfence's own "Firewall Summary" widget (attacks blocked, grouped into Complex/Brute Force/Blocklist over 24h/7d/30d), shown as a table on the Status tab's Server Stats panel.

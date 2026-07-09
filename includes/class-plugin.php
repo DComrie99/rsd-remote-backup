@@ -360,6 +360,23 @@ class RSD_RB_Plugin {
                 wp_redirect( add_query_arg( 'rb_notice', $notice, $redirect ) );
                 exit;
 
+            case 'run_transient_diag':
+                if ( ! wp_verify_nonce( $nonce, 'rsd_rb_run_transient_diag' ) ) {
+                    wp_die( esc_html__( 'Security check failed.', 'rsd-remote-backup' ) );
+                }
+                // Writes now, deliberately read back on the NEXT request (after this
+                // redirect) rather than in the same PHP process — that's what actually
+                // mirrors the OAuth-state and API-key-reveal failure mode we're
+                // investigating: both write a transient then redirect and expect it to
+                // still be there. A same-request round trip would pass even on a site
+                // where the object cache doesn't persist across requests.
+                $probe_token = wp_generate_password( 12, false );
+                set_transient( 'rsd_rb_diag_probe_transient', $probe_token, 5 * MINUTE_IN_SECONDS );
+                update_option( 'rsd_rb_diag_probe_option', $probe_token, false );
+                RSD_RB_Logger::info( 'Transient diagnostic probe set: ' . $probe_token );
+                wp_redirect( add_query_arg( array( 'rb_notice' => 'transient_diag_set', 'rb_tab' => 'status' ), $redirect ) );
+                exit;
+
             case 'regenerate_api_key':
                 if ( ! wp_verify_nonce( $nonce, 'rsd_rb_regenerate_api_key' ) ) {
                     wp_die( esc_html__( 'Security check failed.', 'rsd-remote-backup' ) );

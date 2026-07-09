@@ -120,6 +120,9 @@ class RSD_RB_Admin_Page {
                 case 'api_key_regenerated':
                     add_settings_error( 'RSD_RB', 'api_key_regenerated', __( 'API key regenerated. Update the key in your CRM.', 'rsd-remote-backup' ), 'success' );
                     break;
+                case 'transient_diag_set':
+                    add_settings_error( 'RSD_RB', 'transient_diag_set', __( 'Diagnostic probe set — see the result in Environment Diagnostics below.', 'rsd-remote-backup' ), 'info' );
+                    break;
                 case 'compression_benchmark_done':
                     add_settings_error( 'RSD_RB', 'compression_benchmark_done', __( 'Compression benchmark complete — see the Compression section below.', 'rsd-remote-backup' ), 'success' );
                     break;
