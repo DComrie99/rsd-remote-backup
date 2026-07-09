@@ -856,7 +856,12 @@ $current_provider = RSD_RB_Settings::get_provider();
                     <?php
                     $rsd_rb_diag_cache_actual = wp_cache_get( 'rsd_rb_diag_probe', 'rsd-rb-diag' );
 
-                    if ( '' === $rsd_rb_diag_expected ) :
+                    if ( ! wp_using_ext_object_cache() ) :
+                        ?>
+                        <span class="rsd-rb-badge rsd-rb-badge--cancelled"><?php esc_html_e( 'N/A', 'rsd-remote-backup' ); ?></span>
+                        <?php esc_html_e( 'No external object cache is active on this site, so wp_cache_*() is only guaranteed to last for a single request by design — it failing to survive a redirect here is expected, not a problem. (Transients still persist correctly via the database in this case, which is what the test above confirms.)', 'rsd-remote-backup' ); ?>
+                        <?php
+                    elseif ( '' === $rsd_rb_diag_expected ) :
                         esc_html_e( 'Not run yet — uses the same probe and "Run Test" button above.', 'rsd-remote-backup' );
                     elseif ( false !== $rsd_rb_diag_cache_actual && hash_equals( $rsd_rb_diag_expected, (string) $rsd_rb_diag_cache_actual ) ) :
                         ?>
@@ -866,12 +871,12 @@ $current_provider = RSD_RB_Settings::get_provider();
                     else :
                         ?>
                         <span class="rsd-rb-badge rsd-rb-badge--failed"><?php esc_html_e( 'FAIL', 'rsd-remote-backup' ); ?></span>
-                        <?php esc_html_e( 'The object cache backend itself is not persisting values between requests — this points at the cache connection (e.g. Redis/Memcached unreachable or misconfigured) rather than anything in this plugin.', 'rsd-remote-backup' ); ?>
+                        <?php esc_html_e( 'An external object cache is active but is not persisting values between requests — this points at the cache connection (e.g. Redis/Memcached unreachable or misconfigured) rather than anything in this plugin.', 'rsd-remote-backup' ); ?>
                         <?php
                     endif;
                     ?>
                     <p class="description">
-                        <?php esc_html_e( 'Calls wp_cache_get()/wp_cache_set() directly, bypassing the Transients API entirely, using the same probe value as the test above.', 'rsd-remote-backup' ); ?>
+                        <?php esc_html_e( 'Calls wp_cache_get()/wp_cache_set() directly, bypassing the Transients API entirely, using the same probe value as the test above. Only meaningful when an external object cache is active — see "External object cache" above.', 'rsd-remote-backup' ); ?>
                     </p>
                 </td>
             </tr>
