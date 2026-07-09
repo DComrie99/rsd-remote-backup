@@ -20,32 +20,57 @@ class RSD_RB_OAuth {
     /**
      * Generate and store a signed state nonce for the given provider.
      * Returns the state string to embed in the authorize URL.
+     *
+     * Stored as a plain option with a manually-checked expiry, not a transient.
+     * When an external object cache is active, WordPress stores transients
+     * ONLY in that cache — never in the DB — so a misconfigured or unreachable
+     * cache (confirmed on at least one client site, where wp_cache_get()/
+     * wp_cache_set() themselves didn't round-trip either) makes the value
+     * vanish before the browser ever returns from the provider's consent
+     * screen. A plain option always writes through to the DB regardless of
+     * object cache health, so it survives that round trip on every site.
      */
     public static function create_state( string $provider_key ): string {
         $state = wp_generate_password( 32, false );
-        set_transient( 'rsd_rb_oauth_state_' . $provider_key, $state, 10 * MINUTE_IN_SECONDS );
+        update_option( 'rsd_rb_oauth_state_' . $provider_key, array(
+            'state'   => $state,
+            'expires' => time() + 10 * MINUTE_IN_SECONDS,
+        ), false );
         return $state;
     }
 
     /**
      * Validate the state param returned by the provider.
-     * Deletes the transient on success (one-time use).
+     * Deletes the stored option on read (one-time use), same as the transient
+     * this used to be.
      *
      * @throws RuntimeException On mismatch (possible CSRF).
      */
     public static function validate_state( string $provider_key, string $returned_state ): void {
-        $expected = get_transient( 'rsd_rb_oauth_state_' . $provider_key );
-        delete_transient( 'rsd_rb_oauth_state_' . $provider_key );
+        $option_name = 'rsd_rb_oauth_state_' . $provider_key;
+        $stored      = get_option( $option_name, null );
+        delete_option( $option_name );
 
-        if ( false === $expected || ! hash_equals( (string) $expected, $returned_state ) ) {
-            // TEMPORARY diagnostic — remove once the root cause of the 2026-07-09 OneDrive
-            // state-mismatch investigation is confirmed. These are one-time nonces, not
-            // long-lived secrets, so logging the raw values here is safe.
+        $expected = null;
+        if (
+            is_array( $stored )
+            && ! empty( $stored['state'] )
+            && ! empty( $stored['expires'] )
+            && time() <= (int) $stored['expires']
+        ) {
+            $expected = (string) $stored['state'];
+        }
+
+        if ( null === $expected || ! hash_equals( $expected, $returned_state ) ) {
+            // These are one-time nonces, not long-lived secrets, so logging the raw
+            // values is safe — kept permanently since it's the only way to tell
+            // "never stored / expired" apart from "stored but genuinely mismatched"
+            // from the log alone.
             RSD_RB_Logger::error( sprintf(
-                'OAuth state validate failed for %s — transient %s; expected=%s; returned=%s.',
+                'OAuth state validate failed for %s — stored state %s; expected=%s; returned=%s.',
                 $provider_key,
-                ( false === $expected ? 'MISSING/EXPIRED' : 'present' ),
-                ( false === $expected ? '(none)' : $expected ),
+                ( null === $expected ? 'MISSING/EXPIRED' : 'present' ),
+                ( null === $expected ? '(none)' : $expected ),
                 $returned_state
             ) );
             throw new RuntimeException( 'OAuth state mismatch — possible CSRF attempt.' );

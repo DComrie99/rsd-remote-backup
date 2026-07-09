@@ -15,8 +15,8 @@ defined( 'ABSPATH' ) || exit;
  *   Authorization: Bearer <key>
  *
  * The stored value is a SHA-256 hash of the key, so a DB leak does not expose
- * a usable credential. The raw key is shown once in the admin UI via a transient
- * (1 hour TTL) after generation or regeneration.
+ * a usable credential. The raw key is shown once in the admin UI for 1 hour
+ * after generation or regeneration (see get_reveal_key()).
  *
  * Security properties:
  *   - Key generated with wp_generate_password() (openssl_random_pseudo_bytes).
@@ -61,13 +61,35 @@ class RSD_RB_Rest_Api {
 
     /**
      * Generate a new raw API key, store its SHA-256 hash, and put the raw value
-     * in a 1-hour transient so the admin can copy it from the settings page.
+     * where the admin can copy it from the settings page for the next hour.
      */
     public static function generate_and_store_key(): void {
         $raw    = wp_generate_password( 32, false );
         $hashed = hash( 'sha256', $raw );
         update_option( 'rsd_rb_api_key', $hashed, false );
-        set_transient( 'rsd_rb_api_key_reveal', $raw, HOUR_IN_SECONDS );
+        // Plain option with a manually-checked expiry, not a transient — see the
+        // matching note on RSD_RB_OAuth::create_state(). A transient here would
+        // vanish immediately (rather than after the intended 1-hour window) on a
+        // site whose external object cache doesn't actually persist values.
+        update_option( 'rsd_rb_api_key_reveal', array(
+            'key'     => $raw,
+            'expires' => time() + HOUR_IN_SECONDS,
+        ), false );
+    }
+
+    /**
+     * Returns the raw key if still within its one-time reveal window, else ''.
+     */
+    public static function get_reveal_key(): string {
+        $stored = get_option( 'rsd_rb_api_key_reveal', null );
+        if ( ! is_array( $stored ) || empty( $stored['key'] ) || empty( $stored['expires'] ) ) {
+            return '';
+        }
+        if ( time() > (int) $stored['expires'] ) {
+            delete_option( 'rsd_rb_api_key_reveal' ); // opportunistic cleanup, not load-bearing
+            return '';
+        }
+        return (string) $stored['key'];
     }
 
     // -------------------------------------------------------------------------

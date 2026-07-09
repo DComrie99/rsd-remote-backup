@@ -735,9 +735,9 @@ $current_provider = RSD_RB_Settings::get_provider();
                 <td>
                     <?php
                     // The key is stored as a SHA-256 hash and is never shown from the DB.
-                    // After generation or regeneration the raw key lives in a transient for
-                    // 1 hour so the admin can copy it. After that it is gone for good.
-                    $reveal_key = get_transient( 'rsd_rb_api_key_reveal' );
+                    // After generation or regeneration the raw key is held for 1 hour so
+                    // the admin can copy it. After that it is gone for good.
+                    $reveal_key = RSD_RB_Rest_Api::get_reveal_key();
                     $key_is_set = '' !== get_option( 'rsd_rb_api_key', '' );
                     ?>
 

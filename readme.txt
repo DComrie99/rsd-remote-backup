@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.5
+Stable tag: 0.7.6
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.7.6 =
+* Fix: OAuth CSRF state (Google Drive/OneDrive connect) and the one-time API key reveal now use a plain WordPress option with a manually-checked expiry instead of a transient. On sites with a misconfigured or unreachable persistent object cache, transients can silently vanish before a request completes its round trip (confirmed on a client site where wp_cache_get()/wp_cache_set() themselves didn't round-trip) — causing "OAuth state mismatch" on every connect attempt and the revealed API key never displaying. Plain options always write through to the DB regardless of object cache health, so both features now work correctly regardless of the site's cache setup.
 
 = 0.7.5 =
 * Diagnostics: Environment Diagnostics panel now identifies the active object-cache.php drop-in (name/version from its own header, plus the loaded PHP cache class) and adds a raw wp_cache_set()/wp_cache_get() round-trip test alongside the existing transient round-trip test — separates "the cache backend itself doesn't persist" from "something about how Transients uses it doesn't persist."
