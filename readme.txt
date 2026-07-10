@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.7
+Stable tag: 0.7.8
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.7.8 =
+* New: server-stats now also reports an All-in-One WP Migration Unlimited Extension collector when that paid extension is active — lists every configured backup schedule (title, type, enabled/disabled, period, time, storage destination, last-run outcome, retention), shown as a table on the Status tab's Server Stats panel. The free/core AI1WM plugin has no scheduling feature of its own; this only appears when the Unlimited Extension is installed.
 
 = 0.7.7 =
 * Fix: Environment Diagnostics' "Raw object cache round-trip test" no longer reports FAIL on sites with no external object cache active (the common case — WordPress core's default in-memory cache is only ever meant to last one request, so failing to survive a redirect there is normal, not a problem). Now shows "N/A" with an explanation in that case; PASS/FAIL is only shown when an external object cache is actually active.

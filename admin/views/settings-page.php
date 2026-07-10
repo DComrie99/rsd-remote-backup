@@ -545,6 +545,49 @@ $current_provider = RSD_RB_Settings::get_provider();
                     </td>
                 </tr>
             <?php endif; ?>
+            <?php if ( isset( $server_stats['plugins']['ai1wm_unlimited'] ) ) : $ai1wmve = $server_stats['plugins']['ai1wm_unlimited']; ?>
+                <tr>
+                    <th scope="row"><?php esc_html_e( 'All-in-One WP Migration Schedule', 'rsd-remote-backup' ); ?></th>
+                    <td>
+                        <?php if ( $ai1wmve['version'] ) : ?>
+                            <?php echo esc_html( sprintf( 'v%s', $ai1wmve['version'] ) ); ?>
+                            &nbsp;
+                        <?php endif; ?>
+                        <?php if ( 0 === $ai1wmve['schedules_configured'] ) : ?>
+                            <em><?php esc_html_e( 'Unlimited Extension active — no schedules configured.', 'rsd-remote-backup' ); ?></em>
+                        <?php else : ?>
+                            <table class="widefat striped" style="margin-top:8px;max-width:640px;">
+                                <thead>
+                                    <tr>
+                                        <th><?php esc_html_e( 'Event', 'rsd-remote-backup' ); ?></th>
+                                        <th><?php esc_html_e( 'Type', 'rsd-remote-backup' ); ?></th>
+                                        <th><?php esc_html_e( 'Status', 'rsd-remote-backup' ); ?></th>
+                                        <th><?php esc_html_e( 'Period', 'rsd-remote-backup' ); ?></th>
+                                        <th><?php esc_html_e( 'Time', 'rsd-remote-backup' ); ?></th>
+                                        <th><?php esc_html_e( 'Storage', 'rsd-remote-backup' ); ?></th>
+                                        <th><?php esc_html_e( 'Last Run', 'rsd-remote-backup' ); ?></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ( $ai1wmve['schedules'] as $schedule ) :
+                                        $last_run_css = 'Success' === $schedule['last_run'] ? 'rsd-rb-badge--complete' : ( 'Failed' === $schedule['last_run'] ? 'rsd-rb-badge--failed' : 'rsd-rb-badge--pending' );
+                                    ?>
+                                        <tr>
+                                            <th><?php echo esc_html( $schedule['title'] ); ?></th>
+                                            <td><?php echo esc_html( $schedule['type'] ); ?></td>
+                                            <td><?php echo $schedule['enabled'] ? esc_html__( 'Enabled', 'rsd-remote-backup' ) : esc_html__( 'Disabled', 'rsd-remote-backup' ); ?></td>
+                                            <td><?php echo esc_html( $schedule['period'] ); ?></td>
+                                            <td><?php echo esc_html( $schedule['time'] ?: '—' ); ?></td>
+                                            <td><?php echo esc_html( $schedule['storage'] ); ?></td>
+                                            <td><span class="rsd-rb-badge <?php echo esc_attr( $last_run_css ); ?>"><?php echo esc_html( $schedule['last_run'] ); ?></span></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+            <?php endif; ?>
         </table>
 
         <!-- Job queue -->

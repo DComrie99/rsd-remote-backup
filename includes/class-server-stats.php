@@ -34,8 +34,9 @@ class RSD_RB_Server_Stats {
      */
     private static function get_plugin_collectors(): array {
         return array(
-            'wp_rocket' => array( __CLASS__, 'collect_wp_rocket' ),
-            'wordfence' => array( __CLASS__, 'collect_wordfence' ),
+            'wp_rocket'       => array( __CLASS__, 'collect_wp_rocket' ),
+            'wordfence'       => array( __CLASS__, 'collect_wordfence' ),
+            'ai1wm_unlimited' => array( __CLASS__, 'collect_ai1wm_schedule' ),
         );
     }
 
@@ -177,6 +178,81 @@ class RSD_RB_Server_Stats {
             'firewall_summary_available' => true,
             'firewall_summary'           => $summary,
             'firewall_summary_totals'    => $totals,
+        );
+    }
+
+    /**
+     * All-in-One WP Migration's free/core plugin has no scheduling feature at
+     * all — recurring/scheduled backups require the separate paid "Unlimited
+     * Extension" (all-in-one-wp-migration-unlimited-extension). It stores every
+     * configured schedule as an array of Ai1wmve_Schedule_Event objects in a
+     * single option (AI1WMVE_SCHEDULES_OPTIONS = 'ai1wmve_schedule_events'; see
+     * lib/vendor/servmask/pro/model/schedule/class-ai1wmve-schedule-event(s).php
+     * in the extension's own source).
+     *
+     * Deliberately reads that option directly via get_option() rather than
+     * instantiating Ai1wmve_Schedule_Events — that class's constructor WRITES
+     * three default (disabled) schedule events to the database the first time
+     * the option doesn't exist yet (create_default_events()), which is an
+     * unwanted side effect for what should be a pure read.
+     *
+     * Deliberately omits Ai1wmve_Schedule_Event::password() (the backup
+     * encryption password — base64-encoded, not a secure hash) and
+     * excluded_files/excluded_db_tables/sites — none of that belongs in a
+     * stats-reporting API.
+     *
+     * @return array|null Null if the Unlimited Extension is not active on this site.
+     */
+    private static function collect_ai1wm_schedule(): ?array {
+        if ( ! defined( 'AI1WMVE_SCHEDULES_OPTIONS' ) ) {
+            return null;
+        }
+
+        $version = '';
+        if ( defined( 'AI1WMVE_PATH' ) ) {
+            $main_file = AI1WMVE_PATH . '/all-in-one-wp-migration-unlimited-extension.php';
+            if ( file_exists( $main_file ) ) {
+                $version = get_file_data( $main_file, array( 'Version' => 'Version' ) )['Version'];
+            }
+        }
+
+        $events = get_option( AI1WMVE_SCHEDULES_OPTIONS, array() );
+        if ( ! is_array( $events ) ) {
+            $events = array();
+        }
+
+        $schedules = array();
+        foreach ( $events as $event ) {
+            // Defensive: skip anything not a real Ai1wmve_Schedule_Event object
+            // (e.g. __PHP_Incomplete_Class, if the extension's classes weren't
+            // loaded yet when this option was unserialized for some reason).
+            // Checked against is_enabled() specifically because it — unlike
+            // title()/type()/storage()/retention() — is an explicitly declared
+            // method rather than one resolved through the class's __call() magic
+            // method; method_exists() does not account for __call, so checking
+            // one of the magic-resolved accessors here would wrongly reject
+            // every genuine event.
+            if ( ! is_object( $event ) || ! method_exists( $event, 'is_enabled' ) ) {
+                continue;
+            }
+
+            $schedules[] = array(
+                'title'     => $event->title(),
+                'type'      => $event->type(),
+                'enabled'   => $event->is_enabled(),
+                'repeating' => (bool) $event->repeating(),
+                'period'    => $event->period(),
+                'time'      => $event->time(),
+                'storage'   => $event->storage(),
+                'last_run'  => $event->last_run(),
+                'retention' => $event->retention(),
+            );
+        }
+
+        return array(
+            'version'              => '' !== $version ? $version : null,
+            'schedules_configured' => count( $schedules ),
+            'schedules'            => $schedules,
         );
     }
 }
