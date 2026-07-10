@@ -556,30 +556,100 @@ $current_provider = RSD_RB_Settings::get_provider();
                         <?php if ( 0 === $ai1wmve['schedules_configured'] ) : ?>
                             <em><?php esc_html_e( 'Unlimited Extension active — no schedules configured.', 'rsd-remote-backup' ); ?></em>
                         <?php else : ?>
-                            <table class="widefat striped" style="margin-top:8px;max-width:640px;">
+                            <table class="widefat striped" style="margin-top:8px;max-width:760px;">
                                 <thead>
                                     <tr>
                                         <th><?php esc_html_e( 'Event', 'rsd-remote-backup' ); ?></th>
                                         <th><?php esc_html_e( 'Type', 'rsd-remote-backup' ); ?></th>
                                         <th><?php esc_html_e( 'Status', 'rsd-remote-backup' ); ?></th>
-                                        <th><?php esc_html_e( 'Period', 'rsd-remote-backup' ); ?></th>
-                                        <th><?php esc_html_e( 'Time', 'rsd-remote-backup' ); ?></th>
+                                        <th><?php esc_html_e( 'Scheduled For', 'rsd-remote-backup' ); ?></th>
                                         <th><?php esc_html_e( 'Storage', 'rsd-remote-backup' ); ?></th>
                                         <th><?php esc_html_e( 'Last Run', 'rsd-remote-backup' ); ?></th>
+                                        <th><?php esc_html_e( 'Recent Runs', 'rsd-remote-backup' ); ?></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ( $ai1wmve['schedules'] as $schedule ) :
                                         $last_run_css = 'Success' === $schedule['last_run'] ? 'rsd-rb-badge--complete' : ( 'Failed' === $schedule['last_run'] ? 'rsd-rb-badge--failed' : 'rsd-rb-badge--pending' );
+
+                                        // Precise configured day-of-month/weekday + time, from the raw
+                                        // schedule config — the period()/time() summary ("Per month",
+                                        // "01:00") doesn't say WHICH day of the month it runs on.
+                                        $cfg  = $schedule['schedule'];
+                                        $hour = (int) ( $cfg['hour'] ?? 0 );
+                                        $min  = (int) ( $cfg['minute'] ?? 0 );
+                                        switch ( $cfg['interval'] ?? '' ) {
+                                            case 'Monthly':
+                                                $scheduled_for = sprintf(
+                                                    /* translators: 1: day of month 2: hour 3: minute */
+                                                    __( 'Day %1$d of month at %2$02d:%3$02d', 'rsd-remote-backup' ),
+                                                    (int) ( $cfg['day'] ?? 1 ), $hour, $min
+                                                );
+                                                break;
+                                            case 'Weekly':
+                                                $scheduled_for = sprintf(
+                                                    /* translators: 1: weekday name 2: hour 3: minute */
+                                                    __( '%1$s at %2$02d:%3$02d', 'rsd-remote-backup' ),
+                                                    ucfirst( (string) ( $cfg['weekday'] ?? '' ) ), $hour, $min
+                                                );
+                                                break;
+                                            case 'Daily':
+                                                $scheduled_for = sprintf(
+                                                    /* translators: 1: hour 2: minute */
+                                                    __( 'Daily at %1$02d:%2$02d', 'rsd-remote-backup' ), $hour, $min
+                                                );
+                                                break;
+                                            case 'N-Days':
+                                                $scheduled_for = sprintf(
+                                                    /* translators: 1: number of days 2: hour 3: minute */
+                                                    __( 'Every %1$d day(s) at %2$02d:%3$02d', 'rsd-remote-backup' ),
+                                                    (int) ( $cfg['n'] ?? 1 ), $hour, $min
+                                                );
+                                                break;
+                                            case 'N-Hour':
+                                                $scheduled_for = sprintf(
+                                                    /* translators: %d: number of hours */
+                                                    __( 'Every %d hour(s)', 'rsd-remote-backup' ), (int) ( $cfg['n'] ?? 1 )
+                                                );
+                                                break;
+                                            case 'Hourly':
+                                                $scheduled_for = __( 'Every hour', 'rsd-remote-backup' );
+                                                break;
+                                            default:
+                                                $scheduled_for = $schedule['period'] . ( $schedule['time'] ? ' ' . $schedule['time'] : '' );
+                                        }
                                     ?>
                                         <tr>
                                             <th><?php echo esc_html( $schedule['title'] ); ?></th>
                                             <td><?php echo esc_html( $schedule['type'] ); ?></td>
                                             <td><?php echo $schedule['enabled'] ? esc_html__( 'Enabled', 'rsd-remote-backup' ) : esc_html__( 'Disabled', 'rsd-remote-backup' ); ?></td>
-                                            <td><?php echo esc_html( $schedule['period'] ); ?></td>
-                                            <td><?php echo esc_html( $schedule['time'] ?: '—' ); ?></td>
+                                            <td><?php echo esc_html( $scheduled_for ); ?></td>
                                             <td><?php echo esc_html( $schedule['storage'] ); ?></td>
                                             <td><span class="rsd-rb-badge <?php echo esc_attr( $last_run_css ); ?>"><?php echo esc_html( $schedule['last_run'] ); ?></span></td>
+                                            <td>
+                                                <?php if ( empty( $schedule['log'] ) ) : ?>
+                                                    <em><?php esc_html_e( 'No runs logged yet.', 'rsd-remote-backup' ); ?></em>
+                                                <?php else : ?>
+                                                    <ul style="margin:0;">
+                                                        <?php foreach ( array_slice( $schedule['log'], 0, 5 ) as $entry ) :
+                                                            $entry_css = 'Success' === $entry['status'] ? 'rsd-rb-badge--complete' : ( 'Failed' === $entry['status'] ? 'rsd-rb-badge--failed' : 'rsd-rb-badge--pending' );
+                                                        ?>
+                                                            <li>
+                                                                <small>
+                                                                    <?php echo esc_html( $entry['time'] ? date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( $entry['time'] ) ) : '—' ); ?>
+                                                                    <span class="rsd-rb-badge <?php echo esc_attr( $entry_css ); ?>"><?php echo esc_html( $entry['status'] ?: '—' ); ?></span>
+                                                                    <?php if ( ! empty( $entry['message'] ) ) : ?>
+                                                                        — <span title="<?php echo esc_attr( $entry['message'] ); ?>"><?php echo esc_html( wp_trim_words( $entry['message'], 6, '…' ) ); ?></span>
+                                                                    <?php endif; ?>
+                                                                </small>
+                                                            </li>
+                                                        <?php endforeach; ?>
+                                                    </ul>
+                                                    <?php if ( count( $schedule['log'] ) > 5 ) : ?>
+                                                        <small><em><?php echo esc_html( sprintf( /* translators: %d: number of older runs not shown */ __( '(+%d older)', 'rsd-remote-backup' ), count( $schedule['log'] ) - 5 ) ); ?></em></small>
+                                                    <?php endif; ?>
+                                                <?php endif; ?>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>

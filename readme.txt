@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.8
+Stable tag: 0.7.9
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.7.9 =
+* server-stats' All-in-One WP Migration Unlimited Extension collector now also reports the raw schedule config (exact day-of-month/weekday and time behind the "Per month"/"Per week" summary) and each schedule's real run history (up to 30 timestamped records: when it ran and whether it succeeded or failed) — the previous version's `last_run` field only ever gave the single most-recent status with no timestamp, which couldn't show whether a schedule actually fired on time. Shown as a "Scheduled For" column and an inline "Recent Runs" list on the Status tab's Server Stats panel.
 
 = 0.7.8 =
 * New: server-stats now also reports an All-in-One WP Migration Unlimited Extension collector when that paid extension is active — lists every configured backup schedule (title, type, enabled/disabled, period, time, storage destination, last-run outcome, retention), shown as a table on the Status tab's Server Stats panel. The free/core AI1WM plugin has no scheduling feature of its own; this only appears when the Unlimited Extension is installed.

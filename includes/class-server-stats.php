@@ -201,6 +201,22 @@ class RSD_RB_Server_Stats {
      * excluded_files/excluded_db_tables/sites — none of that belongs in a
      * stats-reporting API.
      *
+     * Includes the raw `schedule` config (interval/weekday/day/hour/minute/n —
+     * e.g. day-of-month for a Monthly schedule) alongside the human-readable
+     * `period`/`time` summary, plus the actual run history (`log`): each
+     * event's last-run OPTION only ever stores a bare status string (Success/
+     * Failed/None), not a timestamp, so it can't answer "did this run when it
+     * was supposed to." The separate Ai1wmve_Schedule_Event_Log option (up to
+     * 30 records/event, newest first — see
+     * lib/vendor/servmask/pro/model/schedule/class-ai1wmve-schedule-event-log.php)
+     * DOES have a real timestamp per run, which is what actually lets someone
+     * compare "configured to run on the 1st at 01:00" against "when it
+     * actually ran" to catch a flaky/stalled scheduler. Read directly via
+     * get_option() (same reasoning as the main events option below — the log
+     * class's own constructor has no side effect, but bypassing it entirely
+     * keeps this consistent with the rest of this method and avoids depending
+     * on the extension's classes for anything more than strictly necessary).
+     *
      * @return array|null Null if the Unlimited Extension is not active on this site.
      */
     private static function collect_ai1wm_schedule(): ?array {
@@ -236,6 +252,12 @@ class RSD_RB_Server_Stats {
                 continue;
             }
 
+            $log_key     = Ai1wmve_Schedule_Event::option_key( 'log', $event->event_id() );
+            $log_records = get_option( $log_key, array() );
+            if ( ! is_array( $log_records ) ) {
+                $log_records = array();
+            }
+
             $schedules[] = array(
                 'title'     => $event->title(),
                 'type'      => $event->type(),
@@ -243,9 +265,20 @@ class RSD_RB_Server_Stats {
                 'repeating' => (bool) $event->repeating(),
                 'period'    => $event->period(),
                 'time'      => $event->time(),
+                'schedule'  => $event->schedule(),
                 'storage'   => $event->storage(),
                 'last_run'  => $event->last_run(),
                 'retention' => $event->retention(),
+                'log'       => array_map(
+                    static function ( $record ) {
+                        return array(
+                            'time'    => isset( $record['time'] ) ? wp_date( 'c', (int) $record['time'] ) : null,
+                            'status'  => $record['status'] ?? null,
+                            'message' => $record['message'] ?? null,
+                        );
+                    },
+                    $log_records
+                ),
             );
         }
 
