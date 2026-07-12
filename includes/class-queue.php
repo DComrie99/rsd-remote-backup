@@ -144,6 +144,7 @@ class RSD_RB_Queue {
             // phpcs:enable
 
             if ( ! $job ) {
+                RSD_RB_Logger::info( 'claim_next(' . $provider . '): no pending or stalled-uploading job available to claim.' );
                 return null;
             }
 
@@ -160,9 +161,11 @@ class RSD_RB_Queue {
             );
 
             if ( ! $claimed ) {
+                RSD_RB_Logger::warning( 'claim_next(' . $provider . '): lost claim race for job #' . $job['id'] . ' — another process claimed it first.' );
                 return null;
             }
 
+            RSD_RB_Logger::info( 'claim_next(' . $provider . '): claimed job #' . $job['id'] . '.' );
             $job['status'] = self::STATUS_UPLOADING;
             return $job;
         } finally {
@@ -221,8 +224,21 @@ class RSD_RB_Queue {
         $in_flight = (int) $wpdb->get_var(
             $wpdb->prepare( "SELECT COUNT(*) FROM `{$table}` WHERE status = %s", self::STATUS_UPLOADING )
         );
+        $cap      = RSD_RB_Settings::get_max_concurrent_uploads();
+        $has_slot = $in_flight < $cap;
 
-        return $in_flight < RSD_RB_Settings::get_max_concurrent_uploads();
+        // Logged on every check (this runs on every claim/start attempt, so it's
+        // frequent) — deliberately verbose so a live-site report of "nothing is
+        // uploading" can be answered directly from the log: is the cap genuinely
+        // full, or is has_slot true here while something else still blocks dispatch?
+        RSD_RB_Logger::info( sprintf(
+            'Concurrency check: %d/%d upload slot(s) in use — %s.',
+            $in_flight,
+            $cap,
+            $has_slot ? 'slot available' : 'cap reached'
+        ) );
+
+        return $has_slot;
     }
 
     /**
@@ -247,20 +263,23 @@ class RSD_RB_Queue {
         );
 
         if ( self::STATUS_UPLOADING === $status ) {
+            RSD_RB_Logger::info( 'start_upload(#' . $job_id . '): already uploading — resuming its held slot.' );
             return true;
         }
 
         if ( self::STATUS_PENDING !== $status ) {
+            RSD_RB_Logger::warning( 'start_upload(#' . $job_id . '): status is "' . $status . '", not pending — cannot start.' );
             return false;
         }
 
         if ( ! self::acquire_slot_lock() ) {
+            RSD_RB_Logger::warning( 'start_upload(#' . $job_id . '): could not acquire the concurrency lock within 5s — will retry.' );
             return false;
         }
 
         try {
             if ( ! self::has_free_upload_slot() ) {
-                return false;
+                return false; // has_free_upload_slot() already logged the count/cap.
             }
 
             $claimed = $wpdb->update(
@@ -269,6 +288,11 @@ class RSD_RB_Queue {
                 array( 'id' => $job_id, 'status' => self::STATUS_PENDING ),
                 array( '%s' ),
                 array( '%d', '%s' )
+            );
+
+            RSD_RB_Logger::info( $claimed
+                ? 'start_upload(#' . $job_id . '): claimed upload slot, status -> uploading.'
+                : 'start_upload(#' . $job_id . '): lost the claim race — status changed before the guarded UPDATE.'
             );
 
             return (bool) $claimed;
@@ -598,6 +622,36 @@ class RSD_RB_Queue {
         );
 
         return $row ?: null;
+    }
+
+    /**
+     * Logs a one-line job-count-by-status snapshot plus the configured
+     * concurrency cap. Added for live-site debugging where the admin has no
+     * direct DB access — called at the top of every scan tick so the log
+     * alone shows queue health trending over time (e.g. "uploading" stuck at
+     * the cap for hours straight is directly visible across several ticks
+     * without cross-referencing the admin UI each time).
+     */
+    public static function log_queue_snapshot(): void {
+        global $wpdb;
+        $table = $wpdb->prefix . RSD_RB_TABLE;
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $rows = $wpdb->get_results( "SELECT status, COUNT(*) AS c FROM `{$table}` GROUP BY status", ARRAY_A );
+        $by_status = array();
+        foreach ( (array) $rows as $row ) {
+            $by_status[ $row['status'] ] = (int) $row['c'];
+        }
+
+        RSD_RB_Logger::info( sprintf(
+            'Queue snapshot: pending=%d uploading=%d complete=%d failed=%d cancelled=%d (concurrency cap=%d).',
+            $by_status[ self::STATUS_PENDING ] ?? 0,
+            $by_status[ self::STATUS_UPLOADING ] ?? 0,
+            $by_status[ self::STATUS_COMPLETE ] ?? 0,
+            $by_status[ self::STATUS_FAILED ] ?? 0,
+            $by_status[ self::STATUS_CANCELLED ] ?? 0,
+            RSD_RB_Settings::get_max_concurrent_uploads()
+        ) );
     }
 
     /** Return all jobs regardless of status (used by resync). */

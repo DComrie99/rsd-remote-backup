@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.12
+Stable tag: 0.7.13
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,11 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.7.13 =
+* New: Status tab's "Background Processing" panel now also reports whether `DISABLE_WP_CRON` is set, whether the scheduled scan is overdue, and Action Scheduler queue health for this plugin's jobs.
+* New: much more detailed logging around upload dispatch — every concurrency-cap check now logs the actual slot count vs the configured cap, every scan tick logs a one-line queue-health snapshot (counts by status), and the Action Scheduler "already scheduled" dedup check now logs the specific action id/status it matched (so a stale/stuck action blocking re-dispatch is directly visible in the log instead of just silently no-op'ing forever).
+* No functional/behavior changes — this release is diagnostic logging only, aimed at pinpointing a live-site report of uploads not starting despite WP-Cron and Action Scheduler both appearing healthy.
 
 = 0.7.12 =
 * Fix: a backup whose local file has been deleted (and was never confirmed uploaded) no longer shows as permanently "Detected" on the Upload Queue with no way to tell it's actually gone. Both the Upload Queue table and the `backups[]` REST field now flag this ("not found on disk" / `missing_locally: true`).

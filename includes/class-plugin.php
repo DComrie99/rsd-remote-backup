@@ -561,17 +561,50 @@ class RSD_RB_Plugin {
     // Cron / AS hooks
 
     public function run_scan(): void {
+        // Unconditional entry log — this is the one call site meant to run
+        // completely unattended every 15 minutes via WP-Cron, with nobody
+        // watching. Previously the only evidence it ran at all was indirect
+        // (a "reset N stalled" line that only appears if something was
+        // actually stalled, or the scanner's own internal log lines) — this
+        // makes "did the scheduled scan tick even fire" directly answerable
+        // from the log, independent of whether it found anything to do.
+        RSD_RB_Logger::info( sprintf(
+            'Scan: run_scan() invoked (%s).',
+            ( defined( 'DOING_CRON' ) && DOING_CRON ) ? 'WP-Cron' : 'direct call'
+        ) );
+
+        // Queue-health snapshot before doing anything else this tick — makes
+        // "was the concurrency cap full for hours" directly visible by
+        // scanning consecutive log entries, without needing the admin UI.
+        RSD_RB_Queue::log_queue_snapshot();
+
         // Reset any stalled uploading jobs before scanning so they get re-scheduled.
         $reset = RSD_RB_Queue::reset_stalled();
         if ( $reset > 0 ) {
             RSD_RB_Logger::warning( 'Scan: reset ' . $reset . ' stalled job(s) to pending.' );
         }
 
-        RSD_RB_Backup_Scanner::run();
+        $queued = RSD_RB_Backup_Scanner::run();
         update_option( 'rsd_rb_last_scan', wp_date( 'c' ), false );
+
         // Schedule any newly enqueued or just-reset jobs immediately.
-        $provider = RSD_RB_Settings::get_provider();
-        RSD_RB_Upload_Worker::schedule_all_pending( $provider );
+        $provider  = RSD_RB_Settings::get_provider();
+        $scheduled = RSD_RB_Upload_Worker::schedule_all_pending( $provider );
+
+        // Unconditional exit log with the actual dispatch decision. Unlike every
+        // manual admin action that calls schedule_all_pending() (each of which
+        // already logs its own "N job(s) scheduled" line right after calling
+        // it), this WP-Cron entry point previously discarded both return values
+        // completely silently — so even on a site where the scheduled scan was
+        // ticking perfectly normally, the log gave no proof of it beyond
+        // whatever the scanner itself happened to log.
+        RSD_RB_Logger::info( sprintf(
+            'Scan: run_scan() complete — %d stalled job(s) reset, %d new file(s) queued, %d job(s) scheduled for upload (provider=%s).',
+            $reset,
+            $queued,
+            $scheduled,
+            $provider
+        ) );
     }
 
     /** Called by Action Scheduler or WP-Cron single event. */

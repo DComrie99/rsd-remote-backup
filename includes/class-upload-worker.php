@@ -42,14 +42,56 @@ class RSD_RB_Upload_Worker {
      */
     public static function schedule( int $job_id ): void {
         if ( function_exists( 'as_enqueue_async_action' ) ) {
-            if ( function_exists( 'as_has_scheduled_action' )
-                && as_has_scheduled_action( self::AS_HOOK, array( 'job_id' => $job_id ), 'rsd-rb' ) ) {
+            $existing = self::find_existing_actions( $job_id );
+            if ( ! empty( $existing ) ) {
+                foreach ( $existing as $existing_id => $existing_status ) {
+                    RSD_RB_Logger::info( sprintf(
+                        'Upload worker: job #%d already has Action Scheduler action #%s (status=%s) — not queuing a duplicate. If this status never changes across several ticks, that action is likely stale/stuck (e.g. its worker process died without ever completing it) and is silently blocking this job forever — check Tools -> Scheduled Actions for action #%s.',
+                        $job_id,
+                        $existing_id,
+                        $existing_status,
+                        $existing_id
+                    ) );
+                }
                 return;
             }
-            as_enqueue_async_action( self::AS_HOOK, array( 'job_id' => $job_id ), 'rsd-rb' );
+            $action_id = as_enqueue_async_action( self::AS_HOOK, array( 'job_id' => $job_id ), 'rsd-rb' );
+            RSD_RB_Logger::info( 'Upload worker: job #' . $job_id . ' scheduled via Action Scheduler (action #' . $action_id . ', group rsd-rb).' );
         } elseif ( ! wp_next_scheduled( self::CRON_HOOK, array( $job_id ) ) ) {
             wp_schedule_single_event( time(), self::CRON_HOOK, array( $job_id ) );
+            RSD_RB_Logger::info( 'Upload worker: job #' . $job_id . ' scheduled via WP-Cron single event (Action Scheduler not active) — depends on a page load reaching wp-cron.php after now.' );
+        } else {
+            RSD_RB_Logger::info( 'Upload worker: job #' . $job_id . ' already has a pending WP-Cron single event — not queuing a duplicate.' );
         }
+    }
+
+    /**
+     * Look up any pending/in-progress Action Scheduler action(s) for this
+     * job, returning [action_id => status]. Uses as_get_scheduled_actions()
+     * rather than the boolean as_has_scheduled_action() specifically so the
+     * log can report which exact action is blocking re-dispatch and its
+     * status — as_has_scheduled_action() alone can't distinguish "a fresh
+     * action legitimately in progress" from "a stale action AS never marked
+     * complete/failed, stuck reporting in-progress forever."
+     */
+    private static function find_existing_actions( int $job_id ): array {
+        if ( ! function_exists( 'as_get_scheduled_actions' ) ) {
+            return array();
+        }
+
+        $found = array();
+        foreach ( array( 'pending', 'in-progress' ) as $status ) {
+            $action_ids = as_get_scheduled_actions( array(
+                'hook'   => self::AS_HOOK,
+                'args'   => array( 'job_id' => $job_id ),
+                'group'  => 'rsd-rb',
+                'status' => $status,
+            ), 'ids' );
+            foreach ( (array) $action_ids as $action_id ) {
+                $found[ $action_id ] = $status;
+            }
+        }
+        return $found;
     }
 
     /**
@@ -91,8 +133,9 @@ class RSD_RB_Upload_Worker {
             return 0;
         }
 
-        $jobs  = RSD_RB_Queue::get_jobs( RSD_RB_Queue::STATUS_PENDING );
-        $count = 0;
+        $jobs    = RSD_RB_Queue::get_jobs( RSD_RB_Queue::STATUS_PENDING );
+        $count   = 0;
+        $missing = 0;
         foreach ( $jobs as $job ) {
             if ( $job['provider'] !== $provider ) {
                 continue;
@@ -100,11 +143,27 @@ class RSD_RB_Upload_Worker {
             // Only schedule jobs whose file is actually on disk.
             if ( empty( $job['filepath'] ) || ! file_exists( $job['filepath'] ) ) {
                 RSD_RB_Queue::mark_file_missing( (int) $job['id'] );
+                ++$missing;
                 continue;
             }
             self::schedule( (int) $job['id'] );
             ++$count;
         }
+
+        // Fires for every call site (the WP-Cron scan tick, REST /trigger, and
+        // every manual admin action) — previously the WP-Cron tick was the one
+        // caller that discarded this method's outcome with no log line at all
+        // (see RSD_RB_Plugin::run_scan()), so a scan that ran perfectly but
+        // found nothing to schedule (or silently failed to schedule anything)
+        // was indistinguishable from one that never ran.
+        RSD_RB_Logger::info( sprintf(
+            'Upload worker: schedule_all_pending(provider=%s) — %d job(s) scheduled, %d marked missing (local file gone), %d pending job(s) total across all providers.',
+            $provider,
+            $count,
+            $missing,
+            count( $jobs )
+        ) );
+
         return $count;
     }
 
@@ -172,9 +231,10 @@ class RSD_RB_Upload_Worker {
             $provider = $job['provider'];
         } else {
             $provider = RSD_RB_Settings::get_provider();
-            $job      = RSD_RB_Queue::claim_next( $provider );
+            RSD_RB_Logger::info( 'Upload worker: opportunistic tick (job_id=0, provider=' . $provider . ').' );
+            $job = RSD_RB_Queue::claim_next( $provider );
             if ( ! $job ) {
-                return; // Nothing to do.
+                return; // claim_next() already logged why (nothing pending, or cap full).
             }
             $job_id = (int) $job['id'];
         }

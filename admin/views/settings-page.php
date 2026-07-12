@@ -389,6 +389,92 @@ $current_provider = RSD_RB_Settings::get_provider();
                     </p>
                 </td>
             </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'DISABLE_WP_CRON', 'rsd-remote-backup' ); ?></th>
+                <td>
+                    <?php if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) : ?>
+                        <span class="rsd-rb-warning"><?php esc_html_e( 'True — WordPress\'s own pseudo-cron is disabled.', 'rsd-remote-backup' ); ?></span>
+                        <p class="description">
+                            <?php esc_html_e( 'A real system cron job must be hitting wp-cron.php on a schedule for the scan/upload cycle to run at all — if none is configured, nothing here will ever fire automatically no matter how much site traffic there is.', 'rsd-remote-backup' ); ?>
+                        </p>
+                    <?php else : ?>
+                        <?php esc_html_e( 'Not set (default) — WordPress\'s own pseudo-cron is active.', 'rsd-remote-backup' ); ?>
+                        <p class="description">
+                            <?php esc_html_e( 'A due scheduled event only actually runs on the next page load that happens after its scheduled time — a low-traffic site can miss its 15-minute scan window by hours if nobody visits.', 'rsd-remote-backup' ); ?>
+                        </p>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'Scheduled Scan (rsd_rb_scan)', 'rsd-remote-backup' ); ?></th>
+                <td>
+                    <?php
+                    $next_scan_ts = wp_next_scheduled( 'rsd_rb_scan' );
+                    if ( ! $next_scan_ts ) :
+                    ?>
+                        <span class="rsd-rb-warning"><?php esc_html_e( 'Not scheduled at all — wp_next_scheduled() found nothing.', 'rsd-remote-backup' ); ?></span>
+                        <p class="description"><?php esc_html_e( 'Deactivating and reactivating the plugin re-registers this event.', 'rsd-remote-backup' ); ?></p>
+                    <?php else :
+                        $overdue_by = time() - $next_scan_ts;
+                    ?>
+                        <?php
+                        printf(
+                            /* translators: %s: date/time the scan is next due */
+                            esc_html__( 'Next due: %s', 'rsd-remote-backup' ),
+                            esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $next_scan_ts ) )
+                        );
+                        ?>
+                        <?php if ( $overdue_by > 30 * MINUTE_IN_SECONDS ) : ?>
+                            <br><span class="rsd-rb-warning">
+                                <?php
+                                printf(
+                                    /* translators: %s: how overdue the scheduled scan is */
+                                    esc_html__( 'Overdue by %s — this event is due but has not run. WP-Cron on this site is likely not firing.', 'rsd-remote-backup' ),
+                                    esc_html( human_time_diff( $next_scan_ts ) )
+                                );
+                                ?>
+                            </span>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'Action Scheduler Queue (rsd-rb group)', 'rsd-remote-backup' ); ?></th>
+                <td>
+                    <?php if ( ! function_exists( 'as_get_scheduled_actions' ) ) : ?>
+                        <em><?php esc_html_e( 'Not applicable — Action Scheduler is not active (see above); this plugin is relying entirely on WP-Cron single events instead.', 'rsd-remote-backup' ); ?></em>
+                    <?php else :
+                        $pending_actions = as_get_scheduled_actions( array(
+                            'group'    => 'rsd-rb',
+                            'status'   => 'pending',
+                            'per_page' => -1,
+                        ), 'ids' );
+                        $past_due_actions = as_get_scheduled_actions( array(
+                            'group'         => 'rsd-rb',
+                            'status'        => 'pending',
+                            'date'          => time(),
+                            'date_compare'  => '<=',
+                            'per_page'      => -1,
+                        ), 'ids' );
+                        $pending_count  = is_array( $pending_actions ) ? count( $pending_actions ) : 0;
+                        $past_due_count = is_array( $past_due_actions ) ? count( $past_due_actions ) : 0;
+                    ?>
+                        <?php
+                        printf(
+                            /* translators: 1: number of pending AS actions 2: number of those that are past due */
+                            esc_html__( '%1$d pending action(s), %2$d of which are past due.', 'rsd-remote-backup' ),
+                            (int) $pending_count,
+                            (int) $past_due_count
+                        );
+                        ?>
+                        <?php if ( $past_due_count > 0 ) : ?>
+                            <p class="description rsd-rb-warning">
+                                <?php esc_html_e( 'Actions are queued but not executing — Action Scheduler\'s own runner (normally driven by WP-Cron, or an async self-request on a normal page load) is not processing this site\'s queue. Check Tools → Scheduled Actions for details on the stuck action(s).', 'rsd-remote-backup' ); ?>
+                            </p>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </td>
+            </tr>
         </table>
 
         <!-- Compression -->
