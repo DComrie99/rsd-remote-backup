@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.13
+Stable tag: 0.7.14
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,10 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.7.14 =
+* Fix: found via the new v0.7.13 diagnostics on a live site — the scheduled scan/upload event (`rsd_rb_scan`) could end up permanently unscheduled (`wp_next_scheduled()` finding nothing) even with WP-Cron and Action Scheduler both healthy. Root cause: the plugin registered its custom "every 15 minutes" cron interval *after* already trying to schedule an event using it on the same request, so `wp_schedule_event()` silently failed. Fixed by registering the interval first. Updating to this version automatically re-schedules the event if it was missing — no manual action needed.
+* Fix: `wp_schedule_event()` failures are no longer silent — a failure to schedule the scan is now logged with the reason.
 
 = 0.7.13 =
 * New: Status tab's "Background Processing" panel now also reports whether `DISABLE_WP_CRON` is set, whether the scheduled scan is overdue, and Action Scheduler queue health for this plugin's jobs.

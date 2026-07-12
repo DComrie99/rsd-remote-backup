@@ -133,8 +133,28 @@ class RSD_RB_Activator {
     private static function schedule_scan(): void {
         $frequency = get_option( 'rsd_rb_scan_frequency', 'rsd_rb_every_15_minutes' );
 
-        if ( ! wp_next_scheduled( 'rsd_rb_scan' ) ) {
-            wp_schedule_event( time(), $frequency, 'rsd_rb_scan' );
+        if ( wp_next_scheduled( 'rsd_rb_scan' ) ) {
+            return;
+        }
+
+        // wp_schedule_event() silently returns false/WP_Error if $frequency
+        // isn't a currently-registered cron schedule (e.g. if this ever runs
+        // before RSD_RB_Plugin::add_cron_schedules() has registered the
+        // custom 'rsd_rb_every_15_minutes' interval for this request) — with
+        // no exception thrown and nothing logged by WP core itself, so a
+        // failure here can silently leave the entire automatic scan/upload
+        // pipeline dead. Check the return value explicitly so this class of
+        // failure is never silent again.
+        $result = wp_schedule_event( time(), $frequency, 'rsd_rb_scan' );
+
+        if ( is_wp_error( $result ) || false === $result ) {
+            RSD_RB_Logger::error( sprintf(
+                'Activator: failed to schedule rsd_rb_scan (frequency="%s") — %s',
+                $frequency,
+                is_wp_error( $result ) ? $result->get_error_message() : 'wp_schedule_event() returned false (unrecognized interval, or another plugin blocked it via the "schedule_event" filter).'
+            ) );
+        } else {
+            RSD_RB_Logger::info( 'Activator: scheduled rsd_rb_scan (frequency="' . $frequency . '").' );
         }
     }
 }

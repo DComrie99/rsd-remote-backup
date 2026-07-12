@@ -24,11 +24,22 @@ class RSD_RB_Plugin {
     }
 
     private function register_hooks(): void {
+        // Register custom cron interval FIRST — maybe_upgrade() below can call
+        // wp_schedule_event() with this interval (via schedule_scan(), on a
+        // version bump), and wp_schedule_event() validates the recurrence
+        // against the currently-registered cron_schedules at the moment it's
+        // called. Registering the filter after that call meant the interval
+        // was never recognized yet, so wp_schedule_event() silently failed —
+        // found via a live site where rsd_rb_scan ended up permanently
+        // unscheduled (wp_next_scheduled() found nothing) despite WP-Cron and
+        // Action Scheduler both being otherwise healthy; maybe_upgrade() only
+        // retries scheduling on the next version bump, so a single failed
+        // attempt here could leave the whole automatic scan/upload pipeline
+        // silently dead until the next release.
+        add_filter( 'cron_schedules', array( __CLASS__, 'add_cron_schedules' ) );
+
         // Run DB migrations if the schema version is behind the plugin version.
         RSD_RB_Activator::maybe_upgrade();
-
-        // Register custom cron interval
-        add_filter( 'cron_schedules', array( __CLASS__, 'add_cron_schedules' ) );
 
         // REST API
         add_action( 'rest_api_init', array( 'RSD_RB_Rest_Api', 'register_routes' ) );
