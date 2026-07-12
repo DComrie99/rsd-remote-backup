@@ -156,8 +156,14 @@ class RSD_RB_Rest_Api {
         $next_scan = wp_next_scheduled( 'rsd_rb_scan' );
         $last_scan = get_option( 'rsd_rb_last_scan', null );
 
-        $formatted = array_map( array( __CLASS__, 'format_job' ), $jobs );
-        $backups   = array_map( array( __CLASS__, 'format_backup' ), RSD_RB_Manifest::get_recent( 100 ) );
+        $formatted  = array_map( array( __CLASS__, 'format_job' ), $jobs );
+        $backup_dir = RSD_RB_Backup_Scanner::backup_dir();
+        $backups    = array_map(
+            static function ( $manifest ) use ( $backup_dir ) {
+                return self::format_backup( $manifest, $backup_dir );
+            },
+            RSD_RB_Manifest::get_recent( 100 )
+        );
 
         return new WP_REST_Response( array(
             'site'           => home_url(),
@@ -228,7 +234,13 @@ class RSD_RB_Rest_Api {
 
         $all_jobs_fresh = RSD_RB_Queue::get_all_jobs( 1000 );
         $formatted      = array_map( array( __CLASS__, 'format_job' ), $all_jobs_fresh );
-        $backups        = array_map( array( __CLASS__, 'format_backup' ), RSD_RB_Manifest::get_recent( 1000 ) );
+        $backup_dir     = RSD_RB_Backup_Scanner::backup_dir();
+        $backups        = array_map(
+            static function ( $manifest ) use ( $backup_dir ) {
+                return self::format_backup( $manifest, $backup_dir );
+            },
+            RSD_RB_Manifest::get_recent( 1000 )
+        );
 
         return new WP_REST_Response( array(
             'updated'            => $result['updated'],
@@ -661,7 +673,7 @@ class RSD_RB_Rest_Api {
      * manifest rows have none). Deliberately excludes local paths/checksums,
      * same as format_job() excludes filepath/session_url.
      */
-    private static function format_backup( array $manifest ): array {
+    private static function format_backup( array $manifest, string $backup_dir ): array {
         $manifest_id = (int) $manifest['id'];
         $job         = RSD_RB_Queue::get_job_by_manifest_id( $manifest_id );
 
@@ -697,6 +709,9 @@ class RSD_RB_Rest_Api {
                 'time_ms'               => null !== $manifest['compression_time_ms'] ? (int) $manifest['compression_time_ms'] : null,
             ) : null,
             'upload'              => $upload,
+            // True if the local file is gone AND this backup was never confirmed uploaded —
+            // not flagged for a backup already uploaded whose local copy was since cleaned up.
+            'missing_locally'     => RSD_RB_Manifest::is_missing_locally( $manifest, $backup_dir ),
         );
     }
 }

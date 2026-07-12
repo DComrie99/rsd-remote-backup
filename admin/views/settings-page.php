@@ -668,7 +668,8 @@ $current_provider = RSD_RB_Settings::get_provider();
              the separate "already uploaded, ready to download" screen. -->
         <h2><?php esc_html_e( 'Upload Queue', 'rsd-remote-backup' ); ?></h2>
         <?php
-        $manifest_rows = RSD_RB_Manifest::get_recent( 30 );
+        $manifest_rows      = RSD_RB_Manifest::get_recent( 30 );
+        $upload_queue_dir   = RSD_RB_Backup_Scanner::backup_dir();
         if ( empty( $manifest_rows ) ) {
             echo '<p>' . esc_html__( 'No backups detected yet.', 'rsd-remote-backup' ) . '</p>';
         } else {
@@ -692,6 +693,7 @@ $current_provider = RSD_RB_Settings::get_provider();
                     <?php foreach ( $manifest_rows as $manifest ) :
                         $manifest_id = (int) $manifest['id'];
                         $job         = RSD_RB_Queue::get_job_by_manifest_id( $manifest_id );
+                        $is_missing  = RSD_RB_Manifest::is_missing_locally( $manifest, $upload_queue_dir );
                         $filesize    = ! empty( $manifest['original_size_bytes'] ) ? (int) $manifest['original_size_bytes'] : ( $job ? (int) $job['filesize'] : 0 );
                         $bytes_sent  = $job ? (int) $job['bytes_sent'] : 0;
                         $is_complete = $job && RSD_RB_Queue::STATUS_COMPLETE === $job['status'];
@@ -705,6 +707,11 @@ $current_provider = RSD_RB_Settings::get_provider();
                             <td>
                                 <strong><?php echo esc_html( $manifest['original_filename'] ); ?></strong><br>
                                 <small><?php echo esc_html( size_format( $filesize, 2 ) ); ?></small>
+                                <?php if ( $is_missing ) : ?>
+                                    <br><small class="rsd-rb-warning" title="<?php esc_attr_e( 'The database still has this backup recorded, but its file is no longer in the backup folder and it was never confirmed uploaded — it will not be retried until a matching file reappears.', 'rsd-remote-backup' ); ?>">
+                                        ⚠ <?php esc_html_e( 'not found on disk', 'rsd-remote-backup' ); ?>
+                                    </small>
+                                <?php endif; ?>
                             </td>
                             <td><?php echo esc_html( $manifest['provider'] ); ?></td>
                             <td><span class="rsd-rb-badge <?php echo esc_attr( RSD_RB_Manifest::pipeline_badge_class( $manifest['status'] ) ); ?>"><?php echo esc_html( RSD_RB_Manifest::pipeline_status_label( $manifest['status'] ) ); ?></span></td>

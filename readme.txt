@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.11
+Stable tag: 0.7.12
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,10 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.7.12 =
+* Fix: a backup whose local file has been deleted (and was never confirmed uploaded) no longer shows as permanently "Detected" on the Upload Queue with no way to tell it's actually gone. Both the Upload Queue table and the `backups[]` REST field now flag this ("not found on disk" / `missing_locally: true`).
+* Fix: detecting a new backup no longer fails to record it at all if the SHA-256 checksum couldn't be computed (e.g. a very large file hitting a transient I/O or timeout issue) — it's now recorded without a baseline checksum instead, which gets backfilled automatically once verification succeeds later (same as backups discovered via Resync already worked).
 
 = 0.7.11 =
 * Changed: "Scan Backup Files" (Status tab, Manual Actions) now also runs the real backup scanner — detecting new/changed files and recording them (manifest + pending job rows) — in addition to its existing raw directory listing. It still deliberately never starts an upload; use "Upload Existing Backups Now" for that. Previously this button was a read-only diagnostic only and had no effect on the Upload Queue.

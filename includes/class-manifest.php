@@ -52,15 +52,32 @@ class RSD_RB_Manifest {
      * the original SHA-256 checksum + size immediately, before any further
      * processing, so verification is possible even if later steps fail.
      *
-     * @return int The new manifest id, or 0 if the file couldn't be checksummed.
+     * A checksum failure (e.g. a multi-GB backup hitting a slow-disk hiccup or
+     * a PHP execution-time limit mid-hash) must NOT block detection itself —
+     * that would silently orphan the job the scanner enqueues right after this
+     * (no manifest link, invisible on the manifest-rooted admin/REST views).
+     * Falls back to the same '' "unknown, not yet verified" sentinel already
+     * used by create_from_remote()/create_from_legacy_job() for backups with
+     * no baseline checksum; RSD_RB_Manifest::sync_from_local_file() (resync)
+     * and RSD_RB_Download_Worker both already know how to backfill an empty
+     * checksum later, so this self-heals rather than staying unverified forever.
+     *
+     * @return int The new manifest id, or 0 only if the file's size couldn't
+     *             even be read (the file vanished between the scanner's own
+     *             stability check and this call — nothing to record).
      */
     public static function create( string $original_filename, string $filepath, string $provider ): int {
-        $checksum = self::checksum( $filepath );
-        $size     = @filesize( $filepath );
+        $size = @filesize( $filepath );
 
-        if ( null === $checksum || false === $size ) {
-            RSD_RB_Logger::warning( 'Manifest: could not checksum ' . $original_filename . ' — no manifest row created.' );
+        if ( false === $size ) {
+            RSD_RB_Logger::warning( 'Manifest: could not read size for ' . $original_filename . ' — no manifest row created.' );
             return 0;
+        }
+
+        $checksum = self::checksum( $filepath );
+        if ( null === $checksum ) {
+            RSD_RB_Logger::warning( 'Manifest: could not checksum ' . $original_filename . ' — creating manifest row without a baseline checksum.' );
+            $checksum = '';
         }
 
         global $wpdb;
@@ -382,6 +399,26 @@ class RSD_RB_Manifest {
 
     // -------------------------------------------------------------------------
     // Display helpers (mirrors RSD_RB_Queue::location_label()/location_badge_class())
+
+    /**
+     * True if this backup's local file is gone AND it was never confirmed
+     * uploaded. Deliberately does NOT flag a backup already `upload_status =
+     * uploaded` whose local copy was since cleaned up (local retention, or
+     * the compressor's own zip cleanup) — that's the expected, safe state,
+     * not a missing backup. Live file_exists() check, same pattern
+     * backups-page.php already uses for its own "not found on remote
+     * provider" hint, rather than trusting any stored status — a manifest's
+     * own `status` column has no code path that ever reflects a vanished
+     * file (see RSD_RB_Queue::mark_file_missing(), which only updates the
+     * linked job, not the manifest), so it can otherwise stay "Detected"
+     * forever after the file is gone.
+     */
+    public static function is_missing_locally( array $manifest, string $backup_dir ): bool {
+        if ( self::UPLOAD_UPLOADED === $manifest['upload_status'] ) {
+            return false;
+        }
+        return ! file_exists( trailingslashit( $backup_dir ) . $manifest['original_filename'] );
+    }
 
     public static function pipeline_status_label( string $status ): string {
         switch ( $status ) {
