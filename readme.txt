@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.14
+Stable tag: 0.7.15
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,10 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.7.15 =
+* Fix: found via a live-site report — the Status tab's "Scheduled Scan" next-due time and the "Next scheduled scan" note were shown in this site's own configured WordPress timezone, while the log timestamps are (and remain) fixed UTC. On a site whose WordPress timezone isn't UTC, this made the two look inconsistent with each other even though both were individually correct. Both displays are now fixed UTC, explicitly labeled, matching the log — always directly comparable regardless of this site's timezone setting.
+* Fix: log lines now explicitly say "UTC" next to their timestamp, removing any ambiguity when comparing logs across sites in different timezones.
 
 = 0.7.14 =
 * Fix: found via the new v0.7.13 diagnostics on a live site — the scheduled scan/upload event (`rsd_rb_scan`) could end up permanently unscheduled (`wp_next_scheduled()` finding nothing) even with WP-Cron and Action Scheduler both healthy. Root cause: the plugin registered its custom "every 15 minutes" cron interval *after* already trying to schedule an event using it on the same request, so `wp_schedule_event()` silently failed. Fixed by registering the interval first. Updating to this version automatically re-schedules the event if it was missing — no manual action needed.

@@ -44,7 +44,7 @@ class RSD_RB_Logger {
 
         $log   = get_option( RSD_RB_LOG_OPTION, array() );
         $log[] = sprintf(
-            '[%s] %s %s',
+            '[%s UTC] %s %s',
             gmdate( 'Y-m-d H:i:s' ),
             $level,
             $message

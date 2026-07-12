@@ -418,10 +418,17 @@ $current_provider = RSD_RB_Settings::get_provider();
                         $overdue_by = time() - $next_scan_ts;
                     ?>
                         <?php
+                        // Deliberately gmdate(), not wp_date() — wp_date() converts to this
+                        // site's own configured Settings > General timezone, which drifted
+                        // from the log's fixed UTC timestamps on a live site whose WP
+                        // timezone wasn't UTC, making "next due" look wrong relative to the
+                        // log even though both were individually correct. Every timestamp on
+                        // this diagnostics screen is UTC now, labeled, so they're always
+                        // directly comparable regardless of this site's timezone setting.
                         printf(
-                            /* translators: %s: date/time the scan is next due */
-                            esc_html__( 'Next due: %s', 'rsd-remote-backup' ),
-                            esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $next_scan_ts ) )
+                            /* translators: %s: date/time the scan is next due, in UTC */
+                            esc_html__( 'Next due: %s UTC', 'rsd-remote-backup' ),
+                            esc_html( gmdate( 'Y-m-d H:i:s', $next_scan_ts ) )
                         );
                         ?>
                         <?php if ( $overdue_by > 30 * MINUTE_IN_SECONDS ) : ?>
@@ -877,13 +884,15 @@ $current_provider = RSD_RB_Settings::get_provider();
             <?php
         }
 
-        // Next scan time.
+        // Next scan time — gmdate(), not wp_date(): see the matching note on the
+        // "Scheduled Scan" diagnostics row above for why this must stay UTC,
+        // matching the log, rather than converting to this site's timezone.
         $next_scan = wp_next_scheduled( 'rsd_rb_scan' );
         if ( $next_scan ) {
             printf(
-                '<p class="description">%s <strong>%s</strong></p>',
+                '<p class="description">%s <strong>%s UTC</strong></p>',
                 esc_html__( 'Next scheduled scan:', 'rsd-remote-backup' ),
-                esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $next_scan ) )
+                esc_html( gmdate( 'Y-m-d H:i:s', $next_scan ) )
             );
         }
         ?>
