@@ -358,8 +358,15 @@ class RSD_RB_Plugin {
                 if ( ! wp_verify_nonce( $nonce, 'rsd_rb_scan_files' ) ) {
                     wp_die( esc_html__( 'Security check failed.', 'rsd-remote-backup' ) );
                 }
-                $found = RSD_RB_Backup_Scanner::log_all_files();
-                wp_redirect( add_query_arg( array( 'rb_notice' => 'files_scanned_' . $found, 'rb_tab' => 'status' ), $redirect ) );
+                // Detect + record new/changed backups (manifest + pending job rows) without
+                // scheduling any upload — deliberately does not call schedule_all_pending(),
+                // unlike 'upload_now', for an admin who wants visibility into what's on disk
+                // without committing to starting a transfer yet. Runs before the existing raw
+                // directory listing below, same as the WP-Cron scan tick's own ordering.
+                $queued = RSD_RB_Backup_Scanner::run();
+                update_option( 'rsd_rb_last_scan', wp_date( 'c' ), false );
+                $found  = RSD_RB_Backup_Scanner::log_all_files();
+                wp_redirect( add_query_arg( array( 'rb_notice' => 'files_scanned_' . $found . '_queued_' . $queued, 'rb_tab' => 'status' ), $redirect ) );
                 exit;
 
             case 'test_connection':

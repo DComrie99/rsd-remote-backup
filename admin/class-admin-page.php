@@ -198,9 +198,10 @@ class RSD_RB_Admin_Page {
                             $n > 0 ? 'success' : 'info'
                         );
                     }
-                    // files_scanned_N
-                    if ( 1 === preg_match( '/^files_scanned_(\d+)$/', $raw, $m ) ) {
-                        $n = (int) $m[1];
+                    // files_scanned_N_queued_M
+                    if ( 1 === preg_match( '/^files_scanned_(\d+)_queued_(\d+)$/', $raw, $m ) ) {
+                        $n      = (int) $m[1];
+                        $queued = (int) $m[2];
                         add_settings_error(
                             'RSD_RB', 'files_scanned',
                             sprintf(
@@ -210,6 +211,17 @@ class RSD_RB_Admin_Page {
                             ),
                             'info'
                         );
+                        if ( $queued > 0 ) {
+                            add_settings_error(
+                                'RSD_RB', 'files_queued',
+                                sprintf(
+                                    /* translators: %d: number of newly detected backups queued */
+                                    _n( '%d new backup detected and queued — not yet uploaded, use "Upload Existing Backups Now" to start.', '%d new backups detected and queued — not yet uploaded, use "Upload Existing Backups Now" to start.', $queued, 'rsd-remote-backup' ),
+                                    $queued
+                                ),
+                                'success'
+                            );
+                        }
                     }
                     break;
             }

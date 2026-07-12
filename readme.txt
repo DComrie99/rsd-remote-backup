@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.10
+Stable tag: 0.7.11
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,10 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.7.11 =
+* Changed: "Scan Backup Files" (Status tab, Manual Actions) now also runs the real backup scanner — detecting new/changed files and recording them (manifest + pending job rows) — in addition to its existing raw directory listing. It still deliberately never starts an upload; use "Upload Existing Backups Now" for that. Previously this button was a read-only diagnostic only and had no effect on the Upload Queue.
+* Changed: the notice shown after clicking "Scan Backup Files" now also reports how many new backups were detected and queued, separately from the raw file count found on disk.
 
 = 0.7.10 =
 * New: `/status` and `/resync` REST endpoints now also return a `backups[]` array alongside the existing `jobs[]` (unchanged) — one entry per detected backup file, present from the moment it's found on disk regardless of upload progress, with the fuller detect/compress/upload lifecycle status and upload mechanics nested underneath. For CRM integrations that want to track backup presence first and upload status second.

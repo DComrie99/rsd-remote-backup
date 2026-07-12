@@ -19,10 +19,17 @@ class RSD_RB_Backup_Scanner {
 
     // -------------------------------------------------------------------------
 
-    public static function run(): void {
+    /**
+     * Detects new/changed backups and records them (manifest + pending job
+     * rows) — never starts an upload itself. Callers that also want uploads
+     * to begin must separately call RSD_RB_Upload_Worker::schedule_all_pending().
+     *
+     * @return int Number of files newly enqueued this run.
+     */
+    public static function run(): int {
         if ( ! RSD_RB_License::is_valid() ) {
             RSD_RB_Logger::warning( 'Backup scanner skipped — no valid license.' );
-            return;
+            return 0;
         }
 
         $source     = RSD_RB_Settings::get_backup_source_config();
@@ -31,13 +38,13 @@ class RSD_RB_Backup_Scanner {
 
         if ( ! is_dir( $backup_dir ) ) {
             RSD_RB_Logger::warning( 'Backup scanner: directory not found — ' . $backup_dir );
-            return;
+            return 0;
         }
 
         $provider = RSD_RB_Settings::get_provider();
         if ( empty( $provider ) ) {
             RSD_RB_Logger::warning( 'Backup scanner: no provider configured.' );
-            return;
+            return 0;
         }
 
         $files   = glob( trailingslashit( $backup_dir ) . '*.' . $ext );
@@ -111,6 +118,8 @@ class RSD_RB_Backup_Scanner {
         } else {
             RSD_RB_Logger::info( 'Backup scanner: scan complete — no new files to enqueue.' );
         }
+
+        return $queued;
     }
 
     /**
