@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.9
+Stable tag: 0.7.10
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,10 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.7.10 =
+* New: `/status` and `/resync` REST endpoints now also return a `backups[]` array alongside the existing `jobs[]` (unchanged) — one entry per detected backup file, present from the moment it's found on disk regardless of upload progress, with the fuller detect/compress/upload lifecycle status and upload mechanics nested underneath. For CRM integrations that want to track backup presence first and upload status second.
+* Changed: the admin "Upload Queue" table (Status tab) now lists backups by their fuller detect/compress/upload pipeline status (e.g. "Compressing", "Compression failed — uploading raw") instead of just the narrower upload-job status. Note: a backup uploaded before this plugin's manifest tracking existed (pre-v0.3.10) that never finished uploading will not appear in this list — it's still tracked in the database, just not surfaced here.
 
 = 0.7.9 =
 * server-stats' All-in-One WP Migration Unlimited Extension collector now also reports the raw schedule config (exact day-of-month/weekday and time behind the "Per month"/"Per week" summary) and each schedule's real run history (up to 30 timestamped records: when it ran and whether it succeeded or failed) — the previous version's `last_run` field only ever gave the single most-recent status with no timestamp, which couldn't show whether a schedule actually fired on time. Shown as a "Scheduled For" column and an inline "Recent Runs" list on the Status tab's Server Stats panel.

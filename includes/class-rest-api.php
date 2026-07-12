@@ -5,7 +5,7 @@ defined( 'ABSPATH' ) || exit;
  * REST API for the RSD Remote Backup plugin.
  *
  * Endpoints:
- *   GET  /wp-json/rsd-rb/v1/status        — job queue + site/provider metadata
+ *   GET  /wp-json/rsd-rb/v1/status        — job queue + backup manifest + site/provider metadata
  *   POST /wp-json/rsd-rb/v1/trigger       — run scanner and schedule pending uploads
  *   POST /wp-json/rsd-rb/v1/resync        — reconcile DB records against remote + local reality
  *   GET  /wp-json/rsd-rb/v1/server-stats  — core WP/server health + plugin-specific stats (e.g. WP Rocket Insights)
@@ -157,6 +157,7 @@ class RSD_RB_Rest_Api {
         $last_scan = get_option( 'rsd_rb_last_scan', null );
 
         $formatted = array_map( array( __CLASS__, 'format_job' ), $jobs );
+        $backups   = array_map( array( __CLASS__, 'format_backup' ), RSD_RB_Manifest::get_recent( 100 ) );
 
         return new WP_REST_Response( array(
             'site'           => home_url(),
@@ -165,6 +166,7 @@ class RSD_RB_Rest_Api {
             'last_scan'      => $last_scan,
             'next_scan'      => $next_scan ? wp_date( 'c', $next_scan ) : null,
             'jobs'           => $formatted,
+            'backups'        => $backups,
         ), 200 );
     }
 
@@ -226,6 +228,7 @@ class RSD_RB_Rest_Api {
 
         $all_jobs_fresh = RSD_RB_Queue::get_all_jobs( 1000 );
         $formatted      = array_map( array( __CLASS__, 'format_job' ), $all_jobs_fresh );
+        $backups        = array_map( array( __CLASS__, 'format_backup' ), RSD_RB_Manifest::get_recent( 1000 ) );
 
         return new WP_REST_Response( array(
             'updated'            => $result['updated'],
@@ -235,6 +238,7 @@ class RSD_RB_Rest_Api {
             'backfilled'         => $result['backfilled'],
             'size_synced'        => $result['size_synced'],
             'jobs'               => $formatted,
+            'backups'            => $backups,
         ), 200 );
     }
 
@@ -646,6 +650,53 @@ class RSD_RB_Rest_Api {
                 'time_ms'               => null !== $manifest['compression_time_ms'] ? (int) $manifest['compression_time_ms'] : null,
                 'remote_is_compressed'  => (bool) $manifest['remote_is_compressed'],
             ) : null,
+        );
+    }
+
+    /**
+     * Format a manifest row for the API response — the backup-presence-first
+     * view (`backups[]`), rooted on the manifest rather than the job. Upload
+     * mechanics live in the nested `upload` object, sourced from the row's
+     * linked job if one exists (rare to be missing — only genuinely orphaned
+     * manifest rows have none). Deliberately excludes local paths/checksums,
+     * same as format_job() excludes filepath/session_url.
+     */
+    private static function format_backup( array $manifest ): array {
+        $manifest_id = (int) $manifest['id'];
+        $job         = RSD_RB_Queue::get_job_by_manifest_id( $manifest_id );
+
+        $upload = null;
+        if ( $job ) {
+            $filesize    = (int) $job['filesize'];
+            $bytes_sent  = (int) $job['bytes_sent'];
+            $is_complete = RSD_RB_Queue::STATUS_COMPLETE === $job['status'];
+            $pct         = $is_complete ? 100 : ( $filesize > 0 ? round( ( $bytes_sent / $filesize ) * 100 ) : 0 );
+
+            $upload = array(
+                'status'       => $job['status'],
+                'location'     => $job['location'] ?? RSD_RB_Queue::LOCATION_LOCAL,
+                'bytes_sent'   => $bytes_sent,
+                'progress_pct' => $pct,
+                'provider'     => $job['provider'],
+                'remote_id'    => $job['remote_id'],
+                'attempts'     => (int) $job['attempts'],
+                'last_error'   => $job['last_error'] ?: null,
+            );
+        }
+
+        return array(
+            'manifest_id'         => $manifest_id,
+            'filename'            => $manifest['original_filename'],
+            'pipeline_status'     => $manifest['status'],
+            'detected_at'         => $manifest['created_at'],
+            'original_size_bytes' => (int) $manifest['original_size_bytes'],
+            'compression'         => $manifest['compression_method'] ? array(
+                'method'                => $manifest['compression_method'],
+                'compressed_size_bytes' => null !== $manifest['compressed_size_bytes'] ? (int) $manifest['compressed_size_bytes'] : null,
+                'ratio'                 => null !== $manifest['compression_ratio'] ? (float) $manifest['compression_ratio'] : null,
+                'time_ms'               => null !== $manifest['compression_time_ms'] ? (int) $manifest['compression_time_ms'] : null,
+            ) : null,
+            'upload'              => $upload,
         );
     }
 }

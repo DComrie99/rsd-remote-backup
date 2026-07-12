@@ -381,6 +381,40 @@ class RSD_RB_Manifest {
     }
 
     // -------------------------------------------------------------------------
+    // Display helpers (mirrors RSD_RB_Queue::location_label()/location_badge_class())
+
+    public static function pipeline_status_label( string $status ): string {
+        switch ( $status ) {
+            case self::STATUS_DETECTED:        return __( 'Detected', 'rsd-remote-backup' );
+            case self::STATUS_COMPRESSING:      return __( 'Compressing', 'rsd-remote-backup' );
+            case self::STATUS_COMPRESSED:        return __( 'Compressed', 'rsd-remote-backup' );
+            case self::STATUS_COMPRESS_FAILED:  return __( 'Compression failed — uploading raw', 'rsd-remote-backup' );
+            case self::STATUS_UPLOADING:         return __( 'Uploading', 'rsd-remote-backup' );
+            case self::STATUS_UPLOADED:          return __( 'Uploaded', 'rsd-remote-backup' );
+            case self::STATUS_UPLOAD_FAILED:    return __( 'Upload failed', 'rsd-remote-backup' );
+            case self::STATUS_CLEANED_UP:        return __( 'Cleaned up', 'rsd-remote-backup' );
+            case self::STATUS_COMPLETE:          return __( 'Complete', 'rsd-remote-backup' );
+            default:                             return $status;
+        }
+    }
+
+    /** Reuses the job-status badge palette (pending/uploading/complete/failed) — no new CSS needed. */
+    public static function pipeline_badge_class( string $status ): string {
+        switch ( $status ) {
+            case self::STATUS_UPLOADED:
+            case self::STATUS_CLEANED_UP:
+            case self::STATUS_COMPLETE:
+                return 'rsd-rb-badge--complete';
+            case self::STATUS_UPLOADING:
+                return 'rsd-rb-badge--uploading';
+            case self::STATUS_UPLOAD_FAILED:
+                return 'rsd-rb-badge--failed';
+            default: // detected, compressing, compressed, compress_failed (still falls back to upload)
+                return 'rsd-rb-badge--pending';
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Queries
 
     public static function get( int $manifest_id ): ?array {

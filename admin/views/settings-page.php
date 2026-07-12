@@ -660,23 +660,28 @@ $current_provider = RSD_RB_Settings::get_provider();
             <?php endif; ?>
         </table>
 
-        <!-- Job queue -->
+        <!-- Backup queue — rooted on the manifest (a backup file's own detect →
+             compress → upload lifecycle), with upload mechanics from its linked
+             job nested in as supporting detail. A manifest row with no job
+             (rare — an orphaned discovery-via-remote edge case) still shows,
+             just with "—" in the job-only columns. See backups-page.php for
+             the separate "already uploaded, ready to download" screen. -->
         <h2><?php esc_html_e( 'Upload Queue', 'rsd-remote-backup' ); ?></h2>
         <?php
-        $jobs = RSD_RB_Queue::get_jobs( null, 30 );
-        if ( empty( $jobs ) ) {
-            echo '<p>' . esc_html__( 'No jobs in the queue.', 'rsd-remote-backup' ) . '</p>';
+        $manifest_rows = RSD_RB_Manifest::get_recent( 30 );
+        if ( empty( $manifest_rows ) ) {
+            echo '<p>' . esc_html__( 'No backups detected yet.', 'rsd-remote-backup' ) . '</p>';
         } else {
             ?>
             <table class="widefat striped rsd-rb-jobs-table">
                 <thead>
                     <tr>
                         <th><?php esc_html_e( '#', 'rsd-remote-backup' ); ?></th>
-                        <th><?php esc_html_e( 'File', 'rsd-remote-backup' ); ?></th>
+                        <th><?php esc_html_e( 'Backup', 'rsd-remote-backup' ); ?></th>
                         <th><?php esc_html_e( 'Provider', 'rsd-remote-backup' ); ?></th>
-                        <th><?php esc_html_e( 'Status', 'rsd-remote-backup' ); ?></th>
+                        <th><?php esc_html_e( 'Pipeline Status', 'rsd-remote-backup' ); ?></th>
                         <th><?php esc_html_e( 'Location', 'rsd-remote-backup' ); ?></th>
-                        <th><?php esc_html_e( 'Progress', 'rsd-remote-backup' ); ?></th>
+                        <th><?php esc_html_e( 'Upload Progress', 'rsd-remote-backup' ); ?></th>
                         <th><?php esc_html_e( 'Compression', 'rsd-remote-backup' ); ?></th>
                         <th><?php esc_html_e( 'Attempts', 'rsd-remote-backup' ); ?></th>
                         <th><?php esc_html_e( 'Last Error', 'rsd-remote-backup' ); ?></th>
@@ -684,35 +689,37 @@ $current_provider = RSD_RB_Settings::get_provider();
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ( $jobs as $job ) :
-                        $filesize    = (int) $job['filesize'];
-                        $bytes_sent  = (int) $job['bytes_sent'];
-                        $is_complete = RSD_RB_Queue::STATUS_COMPLETE === $job['status'];
-                        $manifest    = ! empty( $job['manifest_id'] ) ? RSD_RB_Manifest::get( (int) $job['manifest_id'] ) : null;
+                    <?php foreach ( $manifest_rows as $manifest ) :
+                        $manifest_id = (int) $manifest['id'];
+                        $job         = RSD_RB_Queue::get_job_by_manifest_id( $manifest_id );
+                        $filesize    = ! empty( $manifest['original_size_bytes'] ) ? (int) $manifest['original_size_bytes'] : ( $job ? (int) $job['filesize'] : 0 );
+                        $bytes_sent  = $job ? (int) $job['bytes_sent'] : 0;
+                        $is_complete = $job && RSD_RB_Queue::STATUS_COMPLETE === $job['status'];
                         // While a compressed job is mid-transfer, bytes_sent tracks the offset into the
                         // smaller compressed file — use its size as the % denominator, not the original.
-                        $progress_total = ( $manifest && ! empty( $manifest['compressed_size_bytes'] ) ) ? (int) $manifest['compressed_size_bytes'] : $filesize;
+                        $progress_total = ! empty( $manifest['compressed_size_bytes'] ) ? (int) $manifest['compressed_size_bytes'] : $filesize;
                         $pct            = $is_complete ? 100 : ( $progress_total > 0 ? round( ( $bytes_sent / $progress_total ) * 100 ) : 0 );
-                        $status_css     = 'rsd-rb-badge--' . esc_attr( $job['status'] );
                         ?>
                         <tr>
-                            <td><?php echo esc_html( $job['id'] ); ?></td>
+                            <td><?php echo esc_html( $manifest_id ); ?></td>
                             <td>
-                                <strong><?php echo esc_html( $job['filename'] ); ?></strong><br>
+                                <strong><?php echo esc_html( $manifest['original_filename'] ); ?></strong><br>
                                 <small><?php echo esc_html( size_format( $filesize, 2 ) ); ?></small>
                             </td>
-                            <td><?php echo esc_html( $job['provider'] ); ?></td>
-                            <td><span class="rsd-rb-badge <?php echo esc_attr( $status_css ); ?>"><?php echo esc_html( $job['status'] ); ?></span></td>
+                            <td><?php echo esc_html( $manifest['provider'] ); ?></td>
+                            <td><span class="rsd-rb-badge <?php echo esc_attr( RSD_RB_Manifest::pipeline_badge_class( $manifest['status'] ) ); ?>"><?php echo esc_html( RSD_RB_Manifest::pipeline_status_label( $manifest['status'] ) ); ?></span></td>
                             <td>
-                                <?php
-                                $location = $job['location'] ?? RSD_RB_Queue::LOCATION_LOCAL;
-                                ?>
-                                <span class="rsd-rb-badge <?php echo esc_attr( RSD_RB_Queue::location_badge_class( $location ) ); ?>">
-                                    <?php echo esc_html( RSD_RB_Queue::location_label( $location ) ); ?>
-                                </span>
+                                <?php if ( $job ) : ?>
+                                    <?php $location = $job['location'] ?? RSD_RB_Queue::LOCATION_LOCAL; ?>
+                                    <span class="rsd-rb-badge <?php echo esc_attr( RSD_RB_Queue::location_badge_class( $location ) ); ?>">
+                                        <?php echo esc_html( RSD_RB_Queue::location_label( $location ) ); ?>
+                                    </span>
+                                <?php else : ?>
+                                    —
+                                <?php endif; ?>
                             </td>
                             <td>
-                                <?php if ( $progress_total > 0 ) : ?>
+                                <?php if ( $job && $progress_total > 0 ) : ?>
                                     <div class="rsd-rb-progress" title="<?php echo esc_attr( size_format( $bytes_sent, 2 ) . ' / ' . size_format( $progress_total, 2 ) ); ?>">
                                         <div class="rsd-rb-progress__bar" style="width:<?php echo esc_attr( $pct ); ?>%"></div>
                                     </div>
@@ -722,7 +729,7 @@ $current_provider = RSD_RB_Settings::get_provider();
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?php if ( $manifest && ! empty( $manifest['compression_method'] ) ) : ?>
+                                <?php if ( ! empty( $manifest['compression_method'] ) ) : ?>
                                     <small title="<?php echo esc_attr( RSD_RB_Compressor::method_label( $manifest['compression_method'] ) ); ?>">
                                         <?php
                                         // original_size_bytes can legitimately be unknown (0) for a
@@ -751,7 +758,7 @@ $current_provider = RSD_RB_Settings::get_provider();
                                         }
                                         ?>
                                     </small>
-                                <?php elseif ( $manifest && RSD_RB_Manifest::STATUS_COMPRESS_FAILED === $manifest['status'] ) : ?>
+                                <?php elseif ( RSD_RB_Manifest::STATUS_COMPRESS_FAILED === $manifest['status'] ) : ?>
                                     <small class="rsd-rb-warning" title="<?php esc_attr_e( 'Compression was enabled but failed for this backup — the raw file was uploaded instead.', 'rsd-remote-backup' ); ?>">
                                         <?php esc_html_e( 'failed — uploaded raw', 'rsd-remote-backup' ); ?>
                                     </small>
@@ -759,9 +766,9 @@ $current_provider = RSD_RB_Settings::get_provider();
                                     —
                                 <?php endif; ?>
                             </td>
-                            <td><?php echo esc_html( $job['attempts'] ); ?></td>
+                            <td><?php echo esc_html( $job ? $job['attempts'] : 0 ); ?></td>
                             <td>
-                                <?php if ( ! empty( $job['last_error'] ) ) : ?>
+                                <?php if ( $job && ! empty( $job['last_error'] ) ) : ?>
                                     <span class="rsd-rb-error-snippet" title="<?php echo esc_attr( $job['last_error'] ); ?>">
                                         <?php echo esc_html( wp_trim_words( $job['last_error'], 8, '…' ) ); ?>
                                     </span>
@@ -769,7 +776,7 @@ $current_provider = RSD_RB_Settings::get_provider();
                                     —
                                 <?php endif; ?>
                             </td>
-                            <td><small><?php echo esc_html( $job['updated_at'] ); ?></small></td>
+                            <td><small><?php echo esc_html( $job ? $job['updated_at'] : $manifest['updated_at'] ); ?></small></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

@@ -612,6 +612,23 @@ class RSD_RB_Queue {
         ) ?: array();
     }
 
+    /** Find the job linked to a manifest row, if any (uses idx_manifest_id). */
+    public static function get_job_by_manifest_id( int $manifest_id ): ?array {
+        if ( empty( $manifest_id ) ) {
+            return null;
+        }
+        global $wpdb;
+        $table = $wpdb->prefix . RSD_RB_TABLE;
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $row = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM `{$table}` WHERE manifest_id = %d ORDER BY id DESC LIMIT 1", $manifest_id ),
+            ARRAY_A
+        );
+
+        return $row ?: null;
+    }
+
     /** Update the location field for a job. */
     public static function update_location( int $job_id, string $location ): void {
         global $wpdb;
