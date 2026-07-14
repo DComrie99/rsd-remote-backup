@@ -137,14 +137,41 @@ class RSD_RB_Activator {
             return;
         }
 
+        // This method runs from two very different contexts, and the custom
+        // 'rsd_rb_every_15_minutes' interval MUST be registered before
+        // wp_schedule_event() below or it silently fails (see the note on
+        // that call). RSD_RB_Plugin::register_hooks() registers it too, but
+        // that's not enough on its own:
+        //   (a) maybe_upgrade() (version-bump path) — reached via
+        //       register_hooks(), which registers the filter earlier in the
+        //       same method, so it's already present by the time we get here.
+        //   (b) register_activation_hook()'s callback (fresh-install path,
+        //       rsd-remote-backup.php) — runs in its own separate request
+        //       and NEVER goes through register_hooks() at all, because that
+        //       method is only ever reached via the 'plugins_loaded' hook,
+        //       which for a plugin being activated *right now* already fired
+        //       earlier in this same request, before this plugin was added
+        //       to the active_plugins list — so its own plugins_loaded
+        //       callback never runs during activation. The filter was never
+        //       registered at all on this path, not just too late — which
+        //       meant a wp_schedule_event() failure here on EVERY fresh
+        //       install, found via a brand-new site showing the exact same
+        //       "not scheduled at all" symptom the v0.7.14 fix was meant to
+        //       have already closed.
+        // Registering it here too (guarded so a second add_filter() call
+        // from the register_hooks() path is harmless) makes this method
+        // self-sufficient regardless of which context calls it.
+        if ( ! has_filter( 'cron_schedules', array( 'RSD_RB_Plugin', 'add_cron_schedules' ) ) ) {
+            require_once RSD_RB_DIR . 'includes/class-plugin.php';
+            add_filter( 'cron_schedules', array( 'RSD_RB_Plugin', 'add_cron_schedules' ) );
+        }
+
         // wp_schedule_event() silently returns false/WP_Error if $frequency
-        // isn't a currently-registered cron schedule (e.g. if this ever runs
-        // before RSD_RB_Plugin::add_cron_schedules() has registered the
-        // custom 'rsd_rb_every_15_minutes' interval for this request) — with
-        // no exception thrown and nothing logged by WP core itself, so a
-        // failure here can silently leave the entire automatic scan/upload
-        // pipeline dead. Check the return value explicitly so this class of
-        // failure is never silent again.
+        // isn't a currently-registered cron schedule — with no exception
+        // thrown and nothing logged by WP core itself, so a failure here can
+        // silently leave the entire automatic scan/upload pipeline dead.
+        // Check the return value explicitly so this class of failure is
+        // never silent again.
         $result = wp_schedule_event( time(), $frequency, 'rsd_rb_scan' );
 
         if ( is_wp_error( $result ) || false === $result ) {
