@@ -58,11 +58,20 @@ class RSD_RB_Crypto {
             return hash( 'sha256', RSD_RB_ENCRYPTION_KEY, true );
         }
 
-        // Derive from WP salts — unique per install, not per-request.
-        $salts = '';
-        foreach ( array( AUTH_KEY, SECURE_AUTH_KEY, LOGGED_IN_KEY, NONCE_KEY ) as $salt ) {
-            $salts .= $salt;
-        }
+        // Derive from WP salts — unique per install, not per-request. Uses
+        // wp_salt() rather than referencing the AUTH_KEY/SECURE_AUTH_KEY/
+        // LOGGED_IN_KEY/NONCE_KEY constants directly — those are normally
+        // defined in wp-config.php, but nothing guarantees it (found via a
+        // live site whose wp-config.php was missing AUTH_KEY). Referencing an
+        // undefined constant used to be a silent-ish notice on PHP 7; on
+        // PHP 8+ it's a fatal Error, breaking every save on that site.
+        // wp_salt() is WordPress's own safe accessor: when a constant IS
+        // defined it returns that exact value (so this is byte-for-byte
+        // identical to the old code on every site that already has all four
+        // defined — fully backward compatible, no re-encryption needed for
+        // any secret already stored there), and falls back to a stored/
+        // generated value instead of fataling when one is missing.
+        $salts = wp_salt( 'auth' ) . wp_salt( 'secure_auth' ) . wp_salt( 'logged_in' ) . wp_salt( 'nonce' );
 
         return hash( 'sha256', $salts . home_url(), true );
     }

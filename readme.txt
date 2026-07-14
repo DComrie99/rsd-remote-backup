@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.18
+Stable tag: 0.7.19
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.7.19 =
+* Fix: saving OneDrive (or Google Drive) credentials could fatal with "Undefined constant AUTH_KEY" on a site whose wp-config.php doesn't define all four of WordPress's standard AUTH_KEY/SECURE_AUTH_KEY/LOGGED_IN_KEY/NONCE_KEY security keys. The plugin's at-rest encryption now uses WordPress's own `wp_salt()` accessor instead of referencing those constants directly — identical result (and no re-entry needed) on every site that already has all four defined; sites missing one no longer fatal.
 
 = 0.7.18 =
 * Fix: found via a brand-new install still showing "Scheduled Scan: Not scheduled at all" even on v0.7.14+ (which fixed this for the version-bump case only) — a fresh plugin activation never goes through the code path that registers the custom "every 15 minutes" cron interval at all (activation runs in its own request, separate from the normal plugins_loaded bootstrap), so `wp_schedule_event()` silently failed on every first-time install, not just after the event was somehow cleared. The scan scheduler now registers its own interval immediately before use, regardless of which code path (fresh activation or version-bump) calls it.
