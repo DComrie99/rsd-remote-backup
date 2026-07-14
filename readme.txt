@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.16
+Stable tag: 0.7.17
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.7.17 =
+* Fix: the new Files/Upload Queue tabs on the Backups screen (added in 0.7.16) didn't switch when clicked — the URL hash changed but the visible content never did. Root cause: `admin_enqueue_scripts` matched against a hand-built guess at the Backups page's hook suffix, which didn't actually match what WordPress generates for it, so the tab-switching script was never loading on that screen at all. Now uses the real hook suffixes returned directly by `add_menu_page()`/`add_submenu_page()` instead of guessing.
 
 = 0.7.16 =
 * New: "Files" tab added to the Backups admin screen — one row per detected backup with a simplified status (Detected, Uploading, or Uploaded) and its current location. Once a backup is gone from both the local server and the remote provider (e.g. pruned by retention), it now disappears from this list instead of sitting stuck showing "Detected" or "Uploading" forever.

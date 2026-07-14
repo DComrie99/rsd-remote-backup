@@ -6,8 +6,23 @@ class RSD_RB_Admin_Page {
     const PAGE_SLUG         = 'rsd-remote-backup';
     const BACKUPS_PAGE_SLUG = 'rsd-remote-backup-backups';
 
+    /**
+     * Hook suffixes for our own admin pages, as actually returned by
+     * add_menu_page()/add_submenu_page() — NOT hand-built strings. WordPress's
+     * real hook-suffix convention for a submenu depends on internal state
+     * (the top-level's registered admin_page_hooks entry) that isn't reliably
+     * reproducible by guessing "{parent_slug}_page_{menu_slug}"; a mismatch
+     * here silently no-ops enqueue_assets() with no error, which is exactly
+     * what happened before this fix — the Files/Upload Queue tabs on the
+     * Backups screen rendered, but admin.js never loaded there, so their nav
+     * links behaved as plain anchor jumps (hash changed, nothing else did).
+     *
+     * @var array<string,string>
+     */
+    private static $hooks = array();
+
     public static function add_menu(): void {
-        add_menu_page(
+        $toplevel_hook = add_menu_page(
             __( 'Red Swirl Design Remote Backup', 'rsd-remote-backup' ),
             __( 'RSD Backup', 'rsd-remote-backup' ), // Top-level sidebar icon label — stays distinct so the two submenu items below ("Settings", "Backups") are unambiguous once expanded.
             'manage_options',
@@ -20,7 +35,7 @@ class RSD_RB_Admin_Page {
         // Explicit submenu for the settings page itself, overriding the label
         // WordPress would otherwise auto-generate from the menu_title above —
         // this is what makes the expanded sidebar read "Settings" / "Backups".
-        add_submenu_page(
+        $settings_hook = add_submenu_page(
             self::PAGE_SLUG,
             __( 'Red Swirl Design Remote Backup — Settings', 'rsd-remote-backup' ),
             __( 'Settings', 'rsd-remote-backup' ),
@@ -29,7 +44,7 @@ class RSD_RB_Admin_Page {
             array( __CLASS__, 'render' )
         );
 
-        add_submenu_page(
+        $backups_hook = add_submenu_page(
             self::PAGE_SLUG,
             __( 'RSD Backup — Backups', 'rsd-remote-backup' ),
             __( 'Backups', 'rsd-remote-backup' ),
@@ -37,6 +52,8 @@ class RSD_RB_Admin_Page {
             self::BACKUPS_PAGE_SLUG,
             array( __CLASS__, 'render_backups' )
         );
+
+        self::$hooks = array_filter( array( $toplevel_hook, $settings_hook, $backups_hook ) );
     }
 
     public static function menu_icon_style(): void {
@@ -44,11 +61,7 @@ class RSD_RB_Admin_Page {
     }
 
     public static function enqueue_assets( string $hook ): void {
-        $valid_hooks = array(
-            'toplevel_page_' . self::PAGE_SLUG,
-            self::PAGE_SLUG . '_page_' . self::BACKUPS_PAGE_SLUG,
-        );
-        if ( ! in_array( $hook, $valid_hooks, true ) ) {
+        if ( ! in_array( $hook, self::$hooks, true ) ) {
             return;
         }
         wp_enqueue_style(
