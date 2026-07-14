@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.15
+Stable tag: 0.7.16
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,11 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.7.16 =
+* New: "Files" tab added to the Backups admin screen — one row per detected backup with a simplified status (Detected, Uploading, or Uploaded) and its current location. Once a backup is gone from both the local server and the remote provider (e.g. pruned by retention), it now disappears from this list instead of sitting stuck showing "Detected" or "Uploading" forever.
+* Changed: the Backups admin screen is now organized into 3 tabs — "Backups" (unchanged download/restore screen), the new "Files" tab, and "Upload Queue" (moved here from Settings → Status &amp; Log, unchanged otherwise).
+* No REST API changes.
 
 = 0.7.15 =
 * Fix: found via a live-site report — the Status tab's "Scheduled Scan" next-due time and the "Next scheduled scan" note were shown in this site's own configured WordPress timezone, while the log timestamps are (and remain) fixed UTC. On a site whose WordPress timezone isn't UTC, this made the two look inconsistent with each other even though both were individually correct. Both displays are now fixed UTC, explicitly labeled, matching the log — always directly comparable regardless of this site's timezone setting.

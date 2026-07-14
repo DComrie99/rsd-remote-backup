@@ -451,6 +451,64 @@ class RSD_RB_Manifest {
         }
     }
 
+    // Simplified 4-state view for the Files admin screen — collapses the 9-value
+    // pipeline `status` enum down to what an admin actually needs to know: is this
+    // backup still in progress, already up, or gone. Deliberately NOT persisted
+    // (same reasoning as is_missing_locally() above): computed live from the
+    // linked job's `location` column, which retention/mark_file_missing() DO keep
+    // current, unlike this manifest row's own `status` — a job whose local file
+    // vanished, or whose remote copy was pruned by retention, has `location =
+    // none` immediately, even though nothing ever advances its manifest `status`
+    // past detected/uploading. Without this, a fully-gone backup stays stuck
+    // showing "Detected"/"Uploading" forever instead of reflecting reality.
+    const FILE_STATE_DETECTED  = 'detected';
+    const FILE_STATE_UPLOADING = 'uploading';
+    const FILE_STATE_UPLOADED  = 'uploaded';
+    const FILE_STATE_DELETED   = 'deleted';
+
+    /**
+     * @param array  $manifest A manifest row.
+     * @param string $location One of RSD_RB_Queue::LOCATION_* — the CALLER resolves
+     *                          this (from the linked job's stored `location` when one
+     *                          exists, else live file_exists()/upload_status, mirroring
+     *                          backups-page.php) since this class has no reason to know
+     *                          about jobs or the backup directory itself.
+     */
+    public static function file_state( array $manifest, string $location ): string {
+        if ( RSD_RB_Queue::LOCATION_NONE === $location ) {
+            return self::FILE_STATE_DELETED;
+        }
+        switch ( $manifest['status'] ) {
+            case self::STATUS_UPLOADED:
+            case self::STATUS_CLEANED_UP:
+            case self::STATUS_COMPLETE:
+                return self::FILE_STATE_UPLOADED;
+            case self::STATUS_UPLOADING:
+                return self::FILE_STATE_UPLOADING;
+            default: // detected, compressing, compressed, compress_failed, upload_failed
+                return self::FILE_STATE_DETECTED;
+        }
+    }
+
+    public static function file_state_label( string $state ): string {
+        switch ( $state ) {
+            case self::FILE_STATE_DETECTED:  return __( 'Detected', 'rsd-remote-backup' );
+            case self::FILE_STATE_UPLOADING: return __( 'Uploading', 'rsd-remote-backup' );
+            case self::FILE_STATE_UPLOADED:  return __( 'Uploaded', 'rsd-remote-backup' );
+            case self::FILE_STATE_DELETED:   return __( 'Deleted', 'rsd-remote-backup' );
+            default:                         return $state;
+        }
+    }
+
+    public static function file_state_badge_class( string $state ): string {
+        switch ( $state ) {
+            case self::FILE_STATE_UPLOADED:  return 'rsd-rb-badge--complete';
+            case self::FILE_STATE_UPLOADING: return 'rsd-rb-badge--uploading';
+            case self::FILE_STATE_DELETED:   return 'rsd-rb-badge--failed';
+            default:                          return 'rsd-rb-badge--pending'; // detected
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Queries
 
