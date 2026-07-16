@@ -22,7 +22,7 @@ $rsd_rb_comment_by_status = RSD_RB_Comment_Maintenance::count_by_status();
     <div id="tab-comments" class="rsd-rb-tab">
         <h2><?php esc_html_e( 'Delete All Comments', 'rsd-remote-backup' ); ?></h2>
         <p class="description">
-            <?php esc_html_e( 'For sites on hosting that gets inundated with spam comments — wipes every comment on this site in one action instead of moderating them one at a time.', 'rsd-remote-backup' ); ?>
+            <?php esc_html_e( 'For sites on hosting that gets inundated with spam comments — wipes every genuine comment on this site in one action instead of moderating them one at a time. Does not touch other data that some plugins store in the same underlying table (e.g. WooCommerce order notes) — only real visitor comments/pingbacks/trackbacks are counted or deleted.', 'rsd-remote-backup' ); ?>
         </p>
 
         <div class="rsd-rb-danger-box">
@@ -55,7 +55,7 @@ $rsd_rb_comment_by_status = RSD_RB_Comment_Maintenance::count_by_status();
                 }
                 ?>
                 <br>
-                <em><?php esc_html_e( "If this total looks higher than what the Comments screen shows, that's expected — its default \"All\" view (and the sidebar bubble count) excludes spam and trashed comments. This total is the real row count and exactly what gets deleted.", 'rsd-remote-backup' ); ?></em>
+                <em><?php esc_html_e( "If this total looks higher than what the Comments screen shows, that's expected — its default \"All\" view (and the sidebar bubble count) excludes spam and trashed comments. This total already excludes anything that isn't a genuine comment (e.g. WooCommerce order notes) — it's exactly what gets deleted, nothing else.", 'rsd-remote-backup' ); ?></em>
             </p>
             <?php if ( $rsd_rb_comment_count > 0 ) : ?>
                 <p>
