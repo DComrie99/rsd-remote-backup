@@ -17,6 +17,54 @@ class RSD_RB_Comment_Maintenance {
     }
 
     /**
+     * Breakdown of count_all() by comment_approved value, summing to exactly
+     * the same total. Exists purely so the admin UI can explain a number
+     * that otherwise looks wrong: wp-admin's own Comments screen "All" tab
+     * (and its sidebar bubble count) excludes spam and trashed comments by
+     * default, so it always reads lower than this plugin's total — which
+     * deliberately counts every row, since that's exactly what delete_all()
+     * removes. Uses a raw grouped query rather than wp_count_comments() so
+     * every bucket here is unambiguous rather than relying on WP core's own
+     * (inconsistently-inclusive) aggregate fields.
+     *
+     * @return array{approved:int,pending:int,spam:int,trash:int,other:int}
+     */
+    public static function count_by_status(): array {
+        global $wpdb;
+
+        $counts = array(
+            'approved' => 0,
+            'pending'  => 0,
+            'spam'     => 0,
+            'trash'    => 0,
+            'other'    => 0, // e.g. 'post-trashed'
+        );
+
+        $rows = $wpdb->get_results( "SELECT comment_approved, COUNT(*) AS c FROM {$wpdb->comments} GROUP BY comment_approved", ARRAY_A );
+        foreach ( (array) $rows as $row ) {
+            $n = (int) $row['c'];
+            switch ( (string) $row['comment_approved'] ) {
+                case '1':
+                    $counts['approved'] += $n;
+                    break;
+                case '0':
+                    $counts['pending'] += $n;
+                    break;
+                case 'spam':
+                    $counts['spam'] += $n;
+                    break;
+                case 'trash':
+                    $counts['trash'] += $n;
+                    break;
+                default:
+                    $counts['other'] += $n;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
      * Wipes every comment on this site (any status — approved, pending,
      * spam, trash) via direct SQL rather than looping wp_delete_comment()
      * per row. Deliberate: on hosting bad enough to need this feature at

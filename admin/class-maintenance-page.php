@@ -6,23 +6,29 @@ class RSD_RB_Maintenance_Page {
     const PAGE_SLUG = 'rsd-rb-maintenance';
 
     /**
-     * Hook suffix for this top-level page, as actually returned by
-     * add_menu_page() — see the matching note on RSD_RB_Admin_Page's own
+     * Hook suffix for this submenu page, as actually returned by
+     * add_submenu_page() — see the matching note on RSD_RB_Admin_Page's own
      * $hooks property for why this can't be hand-built from the slug.
      *
      * @var array<int,string>
      */
     private static $hooks = array();
 
+    /**
+     * Third submenu under the existing "RSD Backup" top-level menu, alongside
+     * "Settings" and "Backups" — not its own top-level icon. Registered as a
+     * separate admin_menu callback (rather than folded into
+     * RSD_RB_Admin_Page::add_menu()) purely to keep this feature's own menu
+     * registration/asset-enqueue/action-handling together in one class.
+     */
     public static function add_menu(): void {
-        $hook = add_menu_page(
-            __( 'RSD Maintenance', 'rsd-remote-backup' ),
+        $hook = add_submenu_page(
+            RSD_RB_Admin_Page::PAGE_SLUG,
+            __( 'RSD Backup — Maintenance', 'rsd-remote-backup' ),
             __( 'Maintenance', 'rsd-remote-backup' ),
             'manage_options',
             self::PAGE_SLUG,
-            array( __CLASS__, 'render' ),
-            'dashicons-admin-tools',
-            81
+            array( __CLASS__, 'render' )
         );
 
         self::$hooks = array_filter( array( $hook ) );

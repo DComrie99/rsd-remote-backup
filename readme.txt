@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.8.1
+Stable tag: 0.8.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,10 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.8.2 =
+* Fix: "Maintenance" was showing as its own separate top-level admin menu item instead of a submenu under "RSD Backup" (alongside Settings and Backups), as intended. Now registered as a proper submenu.
+* Fix: the Delete All Comments count could look wrong compared to the Comments screen (e.g. showing 1,243 when Comments only listed 1,080) — that's not a bug, wp-admin's own "All" view (and its sidebar bubble count) excludes spam and trashed comments by default, while this total deliberately counts every row, since that's exactly what gets deleted. Added a status breakdown (approved/pending/spam/trash) directly under the count, with an explanatory note, so the discrepancy is no longer confusing.
 
 = 0.8.1 =
 * New: "Maintenance" — a separate top-level admin menu (own icon, next to "RSD Backup") for one-off site-maintenance tasks, organized into tabs the same way the Settings screen is. First tab: "Delete All Comments", aimed at sites on hosting that gets flooded with spam comments — shows the current total comment count, then wipes every comment on the site (approved, pending, spam, and trash alike) in a single confirmed click. Implemented as a direct bulk SQL delete rather than looping WordPress's own per-comment deletion API, so it completes in one request regardless of how many comments exist (no background job, no progress bar) — deliberately trading off the normal per-comment deletion hooks (e.g. Akismet's stats aren't notified) for reliability on hosts where this plugin's own diagnostics already show WP-Cron/Action Scheduler can be unreliable.

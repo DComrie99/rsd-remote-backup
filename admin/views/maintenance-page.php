@@ -2,6 +2,7 @@
 defined( 'ABSPATH' ) || exit;
 
 $rsd_rb_comment_count = RSD_RB_Comment_Maintenance::count_all();
+$rsd_rb_comment_by_status = RSD_RB_Comment_Maintenance::count_by_status();
 ?>
 <div class="wrap rsd-rb-wrap">
     <div class="rsd-rb-header">
@@ -34,6 +35,27 @@ $rsd_rb_comment_count = RSD_RB_Comment_Maintenance::count_all();
                     '<strong>' . esc_html( number_format_i18n( $rsd_rb_comment_count ) ) . '</strong>'
                 );
                 ?>
+            </p>
+            <p>
+                <?php
+                printf(
+                    /* translators: 1: approved count 2: pending count 3: spam count 4: trash count */
+                    esc_html__( 'Breakdown: %1$s approved, %2$s pending, %3$s spam, %4$s trash.', 'rsd-remote-backup' ),
+                    esc_html( number_format_i18n( $rsd_rb_comment_by_status['approved'] ) ),
+                    esc_html( number_format_i18n( $rsd_rb_comment_by_status['pending'] ) ),
+                    esc_html( number_format_i18n( $rsd_rb_comment_by_status['spam'] ) ),
+                    esc_html( number_format_i18n( $rsd_rb_comment_by_status['trash'] ) )
+                );
+                if ( $rsd_rb_comment_by_status['other'] > 0 ) {
+                    printf(
+                        /* translators: %s: count of comments in other statuses (e.g. post-trashed) */
+                        ' ' . esc_html__( '+%s other.', 'rsd-remote-backup' ),
+                        esc_html( number_format_i18n( $rsd_rb_comment_by_status['other'] ) )
+                    );
+                }
+                ?>
+                <br>
+                <em><?php esc_html_e( "If this total looks higher than what the Comments screen shows, that's expected — its default \"All\" view (and the sidebar bubble count) excludes spam and trashed comments. This total is the real row count and exactly what gets deleted.", 'rsd-remote-backup' ); ?></em>
             </p>
             <?php if ( $rsd_rb_comment_count > 0 ) : ?>
                 <p>
