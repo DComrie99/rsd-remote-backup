@@ -22,12 +22,64 @@ class RSD_RB_Server_Stats {
         }
 
         return array(
-            'site'      => home_url(),
-            'timestamp' => wp_date( 'c' ),
-            'core'      => self::collect_core(),
-            'plugins'   => $plugins,
-            'ssl'       => self::collect_ssl(),
+            'site'                => home_url(),
+            'timestamp'           => wp_date( 'c' ),
+            'core'                => self::collect_core(),
+            'provider_connection' => self::collect_provider_connection(),
+            'plugins'             => $plugins,
+            'ssl'                 => self::collect_ssl(),
         );
+    }
+
+    /**
+     * Live, uncached check of the currently configured cloud provider's
+     * connection — a real API call every time this endpoint is hit, NOT a
+     * reuse of ensure_folder()'s 1-hour folder-existence cache (which would
+     * let a connection that went stale mid-cache-window still report
+     * connected). Added after a live-site report: a OneDrive connection went
+     * stale and reconnecting failed with "no valid secret" until the client
+     * secret was manually re-entered — this surfaces that class of failure
+     * proactively, on the CRM's own polling cadence, rather than only when
+     * the next real upload attempt happens to hit it.
+     */
+    private static function collect_provider_connection(): array {
+        $provider = RSD_RB_Plugin::get_instance()->get_active_provider();
+
+        if ( ! $provider ) {
+            return array(
+                'provider'   => RSD_RB_Settings::get_provider(),
+                'connected'  => false,
+                'checked_at' => wp_date( 'c' ),
+                'message'    => 'No provider configured.',
+            );
+        }
+
+        if ( ! $provider->is_connected() ) {
+            return array(
+                'provider'   => $provider->key(),
+                'connected'  => false,
+                'checked_at' => wp_date( 'c' ),
+                'message'    => 'Not connected — no OAuth tokens stored.',
+            );
+        }
+
+        try {
+            $provider->verify_connection();
+            return array(
+                'provider'   => $provider->key(),
+                'connected'  => true,
+                'checked_at' => wp_date( 'c' ),
+                'message'    => null,
+            );
+        } catch ( RuntimeException $e ) {
+            RSD_RB_Logger::error( 'Server-stats: provider connection check failed — ' . $e->getMessage() );
+            return array(
+                'provider'   => $provider->key(),
+                'connected'  => false,
+                'checked_at' => wp_date( 'c' ),
+                'message'    => $e->getMessage(),
+            );
+        }
     }
 
     /**

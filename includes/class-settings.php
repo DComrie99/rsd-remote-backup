@@ -171,16 +171,7 @@ class RSD_RB_Settings {
     }
 
     public static function get_google_client_secret(): string {
-        $stored = (string) get_option( 'rsd_rb_google_client_secret', '' );
-        if ( '' === $stored ) {
-            return '';
-        }
-        try {
-            return RSD_RB_Crypto::decrypt( $stored );
-        } catch ( Exception $e ) {
-            // Stored value is legacy plaintext — return as-is until user re-saves.
-            return $stored;
-        }
+        return self::decrypt_stored_secret( 'rsd_rb_google_client_secret' );
     }
 
     public static function get_od_client_id(): string {
@@ -188,19 +179,52 @@ class RSD_RB_Settings {
     }
 
     public static function get_od_client_secret(): string {
-        $stored = (string) get_option( 'rsd_rb_od_client_secret', '' );
-        if ( '' === $stored ) {
-            return '';
-        }
-        try {
-            return RSD_RB_Crypto::decrypt( $stored );
-        } catch ( Exception $e ) {
-            // Stored value is legacy plaintext — return as-is until user re-saves.
-            return $stored;
-        }
+        return self::decrypt_stored_secret( 'rsd_rb_od_client_secret' );
     }
 
     public static function get_license_key(): string {
         return (string) get_option( 'rsd_rb_license_key', '' );
+    }
+
+    /**
+     * Shared decrypt-with-self-heal logic for both providers' client
+     * secrets. The two failure modes from RSD_RB_Crypto::decrypt() need
+     * different handling:
+     *   - RSD_RB_Crypto_Malformed_Exception (not shaped like our ciphertext
+     *     at all) is the genuine "saved before this plugin encrypted these
+     *     values" legacy case — safe to use the raw stored value as-is.
+     *   - A plain RuntimeException (shaped correctly, but no known key could
+     *     decrypt it) must NOT be treated as usable plaintext — returning
+     *     the raw ciphertext blob as a "secret" is exactly what silently
+     *     broke OAuth reconnection on a live site (see class-crypto.php).
+     *     Log clearly and return empty so the OAuth flow fails with an
+     *     obvious "not configured" state instead of a confusing rejection
+     *     from the provider using a garbage value.
+     */
+    private static function decrypt_stored_secret( string $option_name ): string {
+        $stored = (string) get_option( $option_name, '' );
+        if ( '' === $stored ) {
+            return '';
+        }
+
+        try {
+            $plaintext = RSD_RB_Crypto::decrypt( $stored, $used_legacy_key );
+        } catch ( RSD_RB_Crypto_Malformed_Exception $e ) {
+            return $stored;
+        } catch ( Exception $e ) {
+            RSD_RB_Logger::error( 'Settings: stored secret "' . $option_name . '" could not be decrypted — ' . $e->getMessage() . ' Re-enter and save it in Settings to fix.' );
+            return '';
+        }
+
+        // Only re-save when recovery actually needed the legacy key —
+        // self-heals a value that was only decryptable via the legacy
+        // (home_url()-inclusive) fallback, so future reads no longer depend
+        // on it, without writing on every ordinary call.
+        if ( $used_legacy_key ) {
+            update_option( $option_name, RSD_RB_Crypto::encrypt( $plaintext ), false );
+            RSD_RB_Logger::info( 'Settings: re-encrypted stored secret "' . $option_name . '" under the current key formula (recovered via legacy fallback).' );
+        }
+
+        return $plaintext;
     }
 }

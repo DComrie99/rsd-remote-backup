@@ -42,6 +42,19 @@ interface RB_Provider {
     /** Whether a valid (potentially refreshable) token is stored. */
     public function is_connected(): bool;
 
+    /**
+     * Make one real, uncached API call to confirm the stored credentials
+     * actually work right now — not just "a token is stored" (is_connected())
+     * or "our local expiry clock says it should still be valid"
+     * (get_valid_access_token()), which can both be true while the secret
+     * has actually gone bad (e.g. revoked, rotated, or the app registration's
+     * client secret expired). Must not use ensure_folder()'s cache — that
+     * would let a connection that broke mid-cache-window still report healthy.
+     *
+     * @throws RuntimeException If the connection is not currently working.
+     */
+    public function verify_connection(): void;
+
     /** Remove stored tokens (disconnect). */
     public function disconnect(): void;
 

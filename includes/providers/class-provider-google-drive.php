@@ -90,6 +90,35 @@ class RSD_RB_Provider_Google_Drive implements RB_Provider {
         return RSD_RB_OAuth::has_tokens( $this->key() );
     }
 
+    /**
+     * Deliberately hits Drive's minimal "about" endpoint directly — NOT
+     * ensure_folder(), which caches the folder-existence result for an hour
+     * and would let this check report healthy even if the connection broke
+     * moments after that cache was last populated. about?fields=user works
+     * fine under the drive.file scope — it identifies the account, it
+     * doesn't touch file content.
+     */
+    public function verify_connection(): void {
+        $access_token = $this->get_valid_access_token();
+
+        $response = wp_remote_get(
+            add_query_arg( array( 'fields' => 'user' ), 'https://www.googleapis.com/drive/v3/about' ),
+            array(
+                'timeout' => 15,
+                'headers' => array( 'Authorization' => 'Bearer ' . $access_token ),
+            )
+        );
+
+        $this->throw_on_wp_error( $response, 'verify_connection' );
+        $code = wp_remote_retrieve_response_code( $response );
+
+        if ( 200 !== $code ) {
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            $msg  = $body['error']['message'] ?? ( 'HTTP ' . $code );
+            throw new RuntimeException( 'Google Drive verify_connection: ' . $msg . ' (HTTP ' . $code . ').' );
+        }
+    }
+
     public function disconnect(): void {
         RSD_RB_OAuth::delete_tokens( $this->key() );
         RSD_RB_Logger::info( 'Google Drive: disconnected.' );

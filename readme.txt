@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.8.0
+Stable tag: 0.8.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,12 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.8.1 =
+* New: "Maintenance" — a separate top-level admin menu (own icon, next to "RSD Backup") for one-off site-maintenance tasks, organized into tabs the same way the Settings screen is. First tab: "Delete All Comments", aimed at sites on hosting that gets flooded with spam comments — shows the current total comment count, then wipes every comment on the site (approved, pending, spam, and trash alike) in a single confirmed click. Implemented as a direct bulk SQL delete rather than looping WordPress's own per-comment deletion API, so it completes in one request regardless of how many comments exist (no background job, no progress bar) — deliberately trading off the normal per-comment deletion hooks (e.g. Akismet's stats aren't notified) for reliability on hosts where this plugin's own diagnostics already show WP-Cron/Action Scheduler can be unreliable.
+* Fix: found via a live site where a OneDrive connection silently "went stale" over time and reconnecting failed claiming there was no valid secret. Root cause: the encryption key used for stored OAuth tokens and provider client secrets was derived partly from `home_url()`, which is not actually stable over a site's lifetime (an HTTP→HTTPS migration, a domain change, a www/non-www change) — any such change silently made every previously-stored secret undecryptable, and the old fallback logic wrongly treated that decrypt failure as "legacy plaintext," returning the raw ciphertext blob as if it were the real secret. The key formula no longer includes `home_url()`; values encrypted under the old formula are still read correctly via an automatic one-time legacy-key fallback and re-saved under the new formula, so no site needs to manually reconnect or re-enter credentials to pick this up.
+* New: `/server-stats` now includes a `provider_connection` field that makes one real, uncached API call to the currently configured provider (Google Drive or OneDrive) to confirm the stored credentials actually work right now — not just that a token is stored. Surfaces the exact class of failure above proactively, on the CRM's own polling cadence, rather than only when the next real upload attempt happens to hit it.
+* New: substantially more detailed logging around the scan/upload pipeline — every scheduled scan tick now logs entry, a queue-health snapshot (job counts by status), and an exit summary (stalled reset / queued / scheduled counts); every concurrency-slot check and Action Scheduler dedup check logs the specific counts/action ids involved. Aimed at answering "why isn't this uploading" directly from the log on sites with no DB access.
 
 = 0.8.0 =
 * New: `/server-stats` now includes a top-level `ssl` field reporting this site's own certificate status (issuer, expiry, days remaining), checked directly from the site itself. This lets certificate expiry be monitored even for sites whose TLS version can't be checked remotely by the monitoring host.

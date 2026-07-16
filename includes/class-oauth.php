@@ -90,6 +90,19 @@ class RSD_RB_OAuth {
     /**
      * Retrieve the decrypted token set, or null if none stored.
      *
+     * Tokens have no historical "legacy plaintext" era the way client
+     * secrets do (see class-settings.php), so any decrypt failure here —
+     * malformed or key-mismatch alike — means the stored tokens genuinely
+     * can't be used; this correctly falls back to "not connected" either way,
+     * same as before. What's new: RSD_RB_Crypto::decrypt() now also tries a
+     * legacy key formula that included home_url() (removed because it isn't
+     * stable over a site's lifetime — see class-crypto.php) before giving
+     * up, so a connection that looked "stale" purely because home_url()
+     * changed since these tokens were saved recovers automatically here,
+     * without the admin ever needing to reconnect. Re-saves re-encrypted
+     * under the current formula on a successful legacy-key recovery so
+     * future reads no longer depend on it.
+     *
      * @return array{access_token:string, refresh_token:string, expires_at:int}|null
      */
     public static function get_tokens( string $provider_key ): ?array {
@@ -99,13 +112,29 @@ class RSD_RB_OAuth {
         }
 
         try {
-            $json   = RSD_RB_Crypto::decrypt( $encrypted );
-            $tokens = json_decode( $json, true );
-            return is_array( $tokens ) ? $tokens : null;
-        } catch ( RuntimeException $e ) {
+            $json = RSD_RB_Crypto::decrypt( $encrypted, $used_legacy_key );
+        } catch ( Exception $e ) {
             RSD_RB_Logger::error( 'Failed to decrypt tokens for ' . $provider_key . ': ' . $e->getMessage() );
             return null;
         }
+
+        $tokens = json_decode( $json, true );
+        if ( ! is_array( $tokens ) ) {
+            return null;
+        }
+
+        // Only re-save when recovery actually needed the legacy key — this
+        // runs on every token-validity check (frequent, including mid-upload),
+        // so an unconditional re-encrypt-and-write on every call would be
+        // wasteful; encrypt() uses a fresh random IV each time regardless of
+        // whether the plaintext changed, so there'd be no way to tell "was a
+        // write actually needed" from the ciphertext alone.
+        if ( $used_legacy_key ) {
+            update_option( 'rsd_rb_tokens_' . $provider_key, RSD_RB_Crypto::encrypt( $json ), false );
+            RSD_RB_Logger::info( 'OAuth: re-encrypted stored tokens for ' . $provider_key . ' under the current key formula (recovered via legacy fallback).' );
+        }
+
+        return $tokens;
     }
 
     /** Delete stored tokens (disconnect). */

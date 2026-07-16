@@ -55,6 +55,10 @@ class RSD_RB_Plugin {
         add_action( 'admin_enqueue_scripts', array( 'RSD_RB_Admin_Page', 'enqueue_assets' ) );
         add_action( 'admin_head',            array( 'RSD_RB_Admin_Page', 'menu_icon_style' ) );
 
+        // Maintenance screen (own top-level menu — separate from RSD Backup)
+        add_action( 'admin_menu',            array( 'RSD_RB_Maintenance_Page', 'add_menu' ) );
+        add_action( 'admin_enqueue_scripts', array( 'RSD_RB_Maintenance_Page', 'enqueue_assets' ) );
+
         // OAuth flow
         add_action( 'admin_init', array( $this, 'handle_oauth_connect' ) );
         add_action( 'admin_init', array( $this, 'handle_oauth_callback' ) );  // Google Drive only
@@ -62,6 +66,9 @@ class RSD_RB_Plugin {
 
         // Admin actions (manual triggers, log clear)
         add_action( 'admin_init', array( $this, 'handle_admin_actions' ) );
+
+        // Maintenance screen actions (e.g. delete all comments)
+        add_action( 'admin_init', array( $this, 'handle_maintenance_actions' ) );
 
         // Background scan (WP-Cron)
         add_action( 'rsd_rb_scan', array( $this, 'run_scan' ) );
@@ -545,6 +552,34 @@ class RSD_RB_Plugin {
                     'refresh_done_' . count( $missing ) . '_' . $result['created'] . '_' . $result['backfilled'],
                     $backups_page
                 ) );
+                exit;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Maintenance screen actions
+
+    public function handle_maintenance_actions(): void {
+        if ( ! isset( $_GET['rb_maint_action'] ) ) {
+            return;
+        }
+        if ( ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
+
+        $action   = sanitize_key( $_GET['rb_maint_action'] );
+        $nonce    = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+        $redirect = admin_url( 'admin.php?page=' . RSD_RB_Maintenance_Page::PAGE_SLUG );
+
+        switch ( $action ) {
+
+            case 'delete_all_comments':
+                if ( ! wp_verify_nonce( $nonce, 'rsd_rb_delete_all_comments' ) ) {
+                    wp_die( esc_html__( 'Security check failed.', 'rsd-remote-backup' ) );
+                }
+                $deleted = RSD_RB_Comment_Maintenance::delete_all();
+                RSD_RB_Logger::info( 'Maintenance: deleted all comments (' . $deleted . ' removed).' );
+                wp_redirect( add_query_arg( 'rb_notice', 'comments_deleted_' . $deleted, $redirect ) );
                 exit;
         }
     }

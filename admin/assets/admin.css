@@ -102,3 +102,28 @@
 
 /* ---- Misc ---- */
 .rsd-rb-warning { color: #a00; }
+
+/* ---- Danger box (Maintenance page) ---- */
+.rsd-rb-danger-box {
+    background: #fcf0f1;
+    border: 1px solid #d63638;
+    border-left-width: 4px;
+    padding: 16px 20px;
+    margin: 16px 0;
+    max-width: 720px;
+}
+
+.rsd-rb-danger-box h3 {
+    margin-top: 0;
+    color: #d63638;
+}
+
+.rsd-rb-danger-button.button-primary {
+    background: #d63638;
+    border-color: #a02222;
+}
+
+.rsd-rb-danger-button.button-primary:hover {
+    background: #a02222;
+    border-color: #a02222;
+}
