@@ -26,6 +26,7 @@ class RSD_RB_Server_Stats {
             'timestamp' => wp_date( 'c' ),
             'core'      => self::collect_core(),
             'plugins'   => $plugins,
+            'ssl'       => self::collect_ssl(),
         );
     }
 
@@ -58,6 +59,170 @@ class RSD_RB_Server_Stats {
             'active_theme'         => wp_get_theme()->get( 'Name' ),
             'active_plugins_count' => count( (array) get_option( 'active_plugins', array() ) ),
         );
+    }
+
+    /**
+     * Checks this site's own SSL certificate by connecting to itself over
+     * TLS, rather than relying on CRM_API's direct check from its own host.
+     * CRM_API's host is Windows 10 LTSC 1809, whose Schannel stack caps at
+     * TLS 1.2 with an old cipher list — some modern sites (TLS 1.3-only)
+     * can never be checked that way regardless of CRM_API code changes.
+     * Running the check here, on the WordPress server itself, sidesteps
+     * that entirely: whatever TLS version this server's own stack supports
+     * is exactly what a real visitor would get.
+     *
+     * Not gated behind any plugin-active check (unlike the collectors
+     * above) — it's core to every site, so it's returned as its own
+     * top-level 'ssl' key rather than folded into 'plugins'.
+     *
+     * @return array
+     */
+    private static function collect_ssl(): array {
+        $host   = wp_parse_url( home_url(), PHP_URL_HOST );
+        $scheme = wp_parse_url( home_url(), PHP_URL_SCHEME );
+
+        if ( ! $host || 'https' !== $scheme ) {
+            return array(
+                'checked'        => false,
+                'status'         => 'unknown',
+                'message'        => 'Site is not served over HTTPS.',
+                'issued_to'      => null,
+                'issuer'         => null,
+                'valid_from'     => null,
+                'valid_to'       => null,
+                'days_remaining' => null,
+            );
+        }
+
+        $context = stream_context_create(
+            array(
+                'ssl' => array(
+                    'capture_peer_cert' => true,
+                    'verify_peer'       => false,
+                    'verify_peer_name'  => false,
+                ),
+            )
+        );
+
+        $client = @stream_socket_client(
+            "ssl://{$host}:443",
+            $errno,
+            $errstr,
+            10,
+            STREAM_CLIENT_CONNECT,
+            $context
+        );
+
+        if ( ! $client ) {
+            return array(
+                'checked'        => false,
+                'status'         => 'unknown',
+                'message'        => "Could not connect to {$host}:443 to check the certificate ({$errstr}).",
+                'issued_to'      => null,
+                'issuer'         => null,
+                'valid_from'     => null,
+                'valid_to'       => null,
+                'days_remaining' => null,
+            );
+        }
+
+        $params = stream_context_get_params( $client );
+        fclose( $client );
+
+        $cert = ! empty( $params['options']['ssl']['peer_certificate'] )
+            ? openssl_x509_parse( $params['options']['ssl']['peer_certificate'] )
+            : false;
+
+        if ( ! $cert ) {
+            return array(
+                'checked'        => false,
+                'status'         => 'unknown',
+                'message'        => "No certificate was presented by {$host}.",
+                'issued_to'      => null,
+                'issuer'         => null,
+                'valid_from'     => null,
+                'valid_to'       => null,
+                'days_remaining' => null,
+            );
+        }
+
+        $valid_to_ts    = (int) $cert['validTo_time_t'];
+        $valid_from_ts  = (int) $cert['validFrom_time_t'];
+        $days_remaining = (int) floor( ( $valid_to_ts - time() ) / DAY_IN_SECONDS );
+        $issued_to      = $cert['subject']['CN'] ?? $host;
+        $issuer         = $cert['issuer']['O'] ?? ( $cert['issuer']['CN'] ?? 'Unknown' );
+
+        // Connecting to ourselves should always match, but a misconfigured
+        // cert (wrong vhost served, wildcard mismatch) is real enough to be
+        // worth surfacing rather than assumed away.
+        $mismatch = ! self::cert_matches_host( $cert, $host );
+
+        if ( $mismatch ) {
+            $status  = 'error';
+            $message = "Certificate served for {$host} does not match its hostname (issued to {$issued_to}).";
+        } elseif ( $days_remaining < 0 ) {
+            $status  = 'error';
+            $message = "Certificate for {$host} expired on " . gmdate( 'Y-m-d', $valid_to_ts ) . '.';
+        } elseif ( $days_remaining <= 14 ) {
+            $status  = 'warning';
+            $message = "Certificate for {$host} expires in {$days_remaining} day(s), on " . gmdate( 'Y-m-d', $valid_to_ts ) . '.';
+        } else {
+            $status  = 'ok';
+            $message = "Certificate for {$host} is valid until " . gmdate( 'Y-m-d', $valid_to_ts ) . '.';
+        }
+
+        return array(
+            'checked'        => true,
+            'status'         => $status,
+            'message'        => $message,
+            'issued_to'      => $issued_to,
+            'issuer'         => $issuer,
+            'valid_from'     => wp_date( 'c', $valid_from_ts ),
+            'valid_to'       => wp_date( 'c', $valid_to_ts ),
+            'days_remaining' => $days_remaining,
+        );
+    }
+
+    /**
+     * Checks a parsed certificate's subjectAltName DNS entries (falling back
+     * to the subject CN if there's no SAN extension at all) against $host,
+     * with basic single-level wildcard support (`*.example.com`). Doesn't
+     * need to be exhaustive — this guards a rare misconfiguration case, not
+     * the primary path (connecting to ourselves should always match).
+     *
+     * @param array<string, mixed> $cert Parsed certificate from openssl_x509_parse().
+     * @param string               $host Hostname to match against.
+     */
+    private static function cert_matches_host( array $cert, string $host ): bool {
+        $names = array();
+
+        if ( ! empty( $cert['extensions']['subjectAltName'] ) ) {
+            foreach ( explode( ',', $cert['extensions']['subjectAltName'] ) as $entry ) {
+                $entry = trim( $entry );
+                if ( 0 === stripos( $entry, 'DNS:' ) ) {
+                    $names[] = strtolower( trim( substr( $entry, 4 ) ) );
+                }
+            }
+        } elseif ( ! empty( $cert['subject']['CN'] ) ) {
+            $names[] = strtolower( $cert['subject']['CN'] );
+        }
+
+        $host = strtolower( $host );
+
+        foreach ( $names as $name ) {
+            if ( $name === $host ) {
+                return true;
+            }
+
+            if ( 0 === strpos( $name, '*.' ) ) {
+                $suffix = substr( $name, 1 ); // ".example.com"
+                if ( substr( $host, -strlen( $suffix ) ) === $suffix && substr_count( $host, '.' ) === substr_count( $name, '.' ) ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

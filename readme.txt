@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.19
+Stable tag: 0.8.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.8.0 =
+* New: `/server-stats` now includes a top-level `ssl` field reporting this site's own certificate status (issuer, expiry, days remaining), checked directly from the site itself. This lets certificate expiry be monitored even for sites whose TLS version can't be checked remotely by the monitoring host.
 
 = 0.7.19 =
 * Fix: saving OneDrive (or Google Drive) credentials could fatal with "Undefined constant AUTH_KEY" on a site whose wp-config.php doesn't define all four of WordPress's standard AUTH_KEY/SECURE_AUTH_KEY/LOGGED_IN_KEY/NONCE_KEY security keys. The plugin's at-rest encryption now uses WordPress's own `wp_salt()` accessor instead of referencing those constants directly — identical result (and no re-entry needed) on every site that already has all four defined; sites missing one no longer fatal.
