@@ -1,8 +1,9 @@
 <?php
 defined( 'ABSPATH' ) || exit;
 
-$rsd_rb_comment_count = RSD_RB_Comment_Maintenance::count_all();
+$rsd_rb_comment_count    = RSD_RB_Comment_Maintenance::count_all();
 $rsd_rb_comment_by_status = RSD_RB_Comment_Maintenance::count_by_status();
+$rsd_rb_comment_by_type   = RSD_RB_Comment_Maintenance::count_by_type();
 ?>
 <div class="wrap rsd-rb-wrap">
     <div class="rsd-rb-header">
@@ -75,5 +76,37 @@ $rsd_rb_comment_by_status = RSD_RB_Comment_Maintenance::count_by_status();
                 <p><em><?php esc_html_e( 'No comments to delete.', 'rsd-remote-backup' ); ?></em></p>
             <?php endif; ?>
         </div>
+
+        <h3><?php esc_html_e( "What's Actually in This Site's Comments Table", 'rsd-remote-backup' ); ?></h3>
+        <p class="description">
+            <?php esc_html_e( 'Raw breakdown by comment_type — every row on the site, including anything this plugin never touches. Same data as running SELECT comment_type, COUNT(*) FROM wp_comments GROUP BY comment_type yourself.', 'rsd-remote-backup' ); ?>
+        </p>
+        <table class="widefat striped rsd-rb-jobs-table" style="max-width:560px;">
+            <thead>
+                <tr>
+                    <th><?php esc_html_e( 'comment_type', 'rsd-remote-backup' ); ?></th>
+                    <th><?php esc_html_e( 'Count', 'rsd-remote-backup' ); ?></th>
+                    <th><?php esc_html_e( 'Deleted by button above?', 'rsd-remote-backup' ); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ( $rsd_rb_comment_by_type as $rsd_rb_type_row ) : ?>
+                    <tr>
+                        <td><code><?php echo '' === $rsd_rb_type_row['type'] ? esc_html__( '(blank)', 'rsd-remote-backup' ) : esc_html( $rsd_rb_type_row['type'] ); ?></code></td>
+                        <td><?php echo esc_html( number_format_i18n( $rsd_rb_type_row['count'] ) ); ?></td>
+                        <td>
+                            <?php if ( $rsd_rb_type_row['deleted'] ) : ?>
+                                <span class="rsd-rb-badge rsd-rb-badge--failed"><?php esc_html_e( 'Yes', 'rsd-remote-backup' ); ?></span>
+                            <?php else : ?>
+                                <span class="rsd-rb-badge rsd-rb-badge--complete"><?php esc_html_e( 'No — left alone', 'rsd-remote-backup' ); ?></span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                <?php if ( empty( $rsd_rb_comment_by_type ) ) : ?>
+                    <tr><td colspan="3"><em><?php esc_html_e( 'The comments table is empty.', 'rsd-remote-backup' ); ?></em></td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
     </div><!-- #tab-comments -->
 </div>

@@ -89,6 +89,35 @@ class RSD_RB_Comment_Maintenance {
     }
 
     /**
+     * Raw breakdown of the ENTIRE comments table by comment_type, including
+     * types this class never touches — every row on the site accounted for,
+     * unlike count_all()/count_by_status() which are already scoped to
+     * REAL_COMMENT_TYPES. Exists so the admin UI can show, on any given
+     * site, exactly what "other" data (if any) is sharing this table and
+     * confirm it's excluded — rather than the admin having to run this same
+     * query by hand against the database to answer "what's the rest of it?"
+     *
+     * @return array<int, array{type:string, count:int, deleted:bool}> Sorted by count, descending.
+     */
+    public static function count_by_type(): array {
+        global $wpdb;
+
+        $rows = $wpdb->get_results( "SELECT comment_type, COUNT(*) AS c FROM {$wpdb->comments} GROUP BY comment_type ORDER BY c DESC", ARRAY_A );
+
+        $out = array();
+        foreach ( (array) $rows as $row ) {
+            $type   = (string) $row['comment_type'];
+            $out[] = array(
+                'type'    => $type,
+                'count'   => (int) $row['c'],
+                'deleted' => in_array( $type, self::REAL_COMMENT_TYPES, true ),
+            );
+        }
+
+        return $out;
+    }
+
+    /**
      * Wipes every genuine comment on this site (see REAL_COMMENT_TYPES; any
      * status — approved, pending, spam, trash) via direct SQL rather than
      * looping wp_delete_comment() per row. Deliberate: on hosting bad enough

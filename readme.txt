@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.8.3
+Stable tag: 0.8.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.8.4 =
+* New: Maintenance → Comments now shows a full raw breakdown by `comment_type` — every row actually in the comments table, including anything the "Delete All Comments" button leaves alone — with a Yes/No column for whether each type gets deleted. Answers "what's actually in here, and what's this button going to touch" directly on-screen, instead of needing to run the equivalent SQL query by hand against the database.
 
 = 0.8.3 =
 * Fix (safety): "Delete All Comments" counted and would have deleted every row in the comments table regardless of what it actually was, not just genuine visitor comments. Found via a live site where the count showed 531 while wp-admin's own Comments screen showed only 1 — 530 of those rows were something else entirely stored in the same table under a different comment_type (most likely WooCommerce order notes, or a similar plugin reusing this table), which wp-admin already knows to hide from its own Comments screen. Now restricted to a whitelist of genuine comment_type values ('', 'comment', 'pingback', 'trackback') for both the displayed count and the actual deletion — anything else (order notes, or any other plugin's own comment-table data, known or not) is left completely untouched. Also added a status breakdown (approved/pending/spam/trash) with an explanatory note so a gap against the Comments screen's own count is never confusing again.
