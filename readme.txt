@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.8.5
+Stable tag: 0.8.6
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,10 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.8.6 =
+* Fix: Disk Usage tab's live progress no longer works by repeatedly reloading the whole page — found via live testing where the reload-based version kept navigating back to itself every ~1-2 seconds regardless of which tab was actually being looked at, hijacking navigation away from the Comments tab and requiring a hard refresh to escape. Now uses a background AJAX poll (this plugin's first) that updates just the file/folder counters in place; leaving or switching tabs no longer fights the scan for control, and normal navigation away from the page now stops it (pauses, resumable later) the way closing the tab always was meant to.
+* Changed: each scan chunk now runs for 5 seconds server-side (up from 3) with no artificial delay between chunks — the previous version added a fixed pause between page reloads for readability, which only slowed the scan down for no benefit once progress updates happen in place instead of via reload.
 
 = 0.8.5 =
 * New: "Disk Usage" tab added to Maintenance — walks the WordPress install (from its root down) and reports total size per folder, cPanel-style, for tracking down sudden backup/disk-usage growth without needing the host's own file manager. Deliberately a one-off manual scan, not a scheduled background task: click Start, leave the tab open, and it advances itself a few seconds at a time (via the browser reloading its own progress) until the whole tree is measured, then lets you drill into any folder to see its children's sizes, biggest first. Closing the tab pauses it — reopening the tab resumes exactly where it left off. No WP-Cron/Action Scheduler involved at all, so there's nothing to go stale in the background between runs.

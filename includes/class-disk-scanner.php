@@ -19,7 +19,7 @@ defined( 'ABSPATH' ) || exit;
 class RSD_RB_Disk_Scanner {
 
     const OPTION        = 'rsd_rb_disk_scan_state';
-    const CHUNK_SECONDS = 3;
+    const CHUNK_SECONDS = 5;
 
     public static function get_state(): array {
         return get_option( self::OPTION, self::default_state() );

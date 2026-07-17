@@ -123,14 +123,11 @@ if ( 'complete' === $rsd_rb_disk_state['status'] ) {
     <div id="tab-disk-usage" class="rsd-rb-tab" style="display:none;">
         <h2><?php esc_html_e( 'Disk Usage', 'rsd-remote-backup' ); ?></h2>
         <p class="description">
-            <?php esc_html_e( 'Walks this site\'s files (from the WordPress root down) and reports total size per folder — for tracking down what\'s suddenly eating disk space, without needing to browse the raw file structure in cPanel. A one-off scan, not something that runs on a schedule: start it, leave this tab open, and it advances itself a few seconds at a time until the whole tree is measured. Closing the tab just pauses it — reopen this tab later and it picks up where it left off.', 'rsd-remote-backup' ); ?>
+            <?php esc_html_e( 'Walks this site\'s files (from the WordPress root down) and reports total size per folder — for tracking down what\'s suddenly eating disk space, without needing to browse the raw file structure in cPanel. A one-off scan, not something that runs on a schedule: start it, leave this browser tab open, and it advances itself in the background until the whole tree is measured — you can freely switch between this screen\'s own tabs while it runs. Closing the browser tab (or navigating elsewhere) just pauses it — come back to this screen later and it picks up where it left off.', 'rsd-remote-backup' ); ?>
         </p>
 
         <?php if ( 'running' === $rsd_rb_disk_state['status'] ) :
-            $rsd_rb_disk_continue_url = wp_nonce_url(
-                admin_url( 'admin.php?page=' . RSD_RB_Maintenance_Page::PAGE_SLUG . '&rb_maint_action=disk_scan_continue' ),
-                'rsd_rb_disk_scan_continue'
-            );
+            $rsd_rb_disk_tick_nonce = wp_create_nonce( 'rsd_rb_disk_scan_tick' );
             $rsd_rb_disk_cancel_url = wp_nonce_url(
                 admin_url( 'admin.php?page=' . RSD_RB_Maintenance_Page::PAGE_SLUG . '&rb_maint_action=disk_scan_cancel' ),
                 'rsd_rb_disk_scan_cancel'
@@ -138,23 +135,57 @@ if ( 'complete' === $rsd_rb_disk_state['status'] ) {
             ?>
             <div class="notice notice-info inline" style="margin:0 0 12px;">
                 <p>
-                    <?php
-                    printf(
-                        /* translators: 1: files scanned so far 2: folders scanned so far */
-                        esc_html__( 'Scanning… %1$s files / %2$s folders measured so far. This page advances itself automatically — no need to click anything, just leave it open.', 'rsd-remote-backup' ),
-                        esc_html( number_format_i18n( $rsd_rb_disk_state['files_scanned'] ) ),
-                        esc_html( number_format_i18n( $rsd_rb_disk_state['dirs_scanned'] ) )
-                    );
-                    ?>
+                    <?php esc_html_e( 'Scanning… this updates automatically, no need to click anything.', 'rsd-remote-backup' ); ?>
+                    <strong><span id="rsd-rb-disk-files"><?php echo esc_html( number_format_i18n( $rsd_rb_disk_state['files_scanned'] ) ); ?></span></strong> <?php esc_html_e( 'files', 'rsd-remote-backup' ); ?>
+                    /
+                    <strong><span id="rsd-rb-disk-dirs"><?php echo esc_html( number_format_i18n( $rsd_rb_disk_state['dirs_scanned'] ) ); ?></span></strong> <?php esc_html_e( 'folders measured so far.', 'rsd-remote-backup' ); ?>
                 </p>
             </div>
             <p>
                 <a href="<?php echo esc_url( $rsd_rb_disk_cancel_url ); ?>" class="button button-secondary"><?php esc_html_e( 'Cancel Scan', 'rsd-remote-backup' ); ?></a>
             </p>
             <script>
-                setTimeout( function () {
-                    window.location.href = <?php echo wp_json_encode( $rsd_rb_disk_continue_url ); ?>;
-                }, 1200 );
+                ( function () {
+                    var filesEl = document.getElementById( 'rsd-rb-disk-files' );
+                    var dirsEl  = document.getElementById( 'rsd-rb-disk-dirs' );
+                    var nonce   = <?php echo wp_json_encode( $rsd_rb_disk_tick_nonce ); ?>;
+
+                    function tick() {
+                        fetch( ajaxurl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: 'action=rsd_rb_disk_scan_tick&nonce=' + encodeURIComponent( nonce )
+                        } )
+                            .then( function ( r ) { return r.json(); } )
+                            .then( function ( res ) {
+                                if ( ! res || ! res.success ) {
+                                    setTimeout( tick, 5000 ); // transient error — back off and retry.
+                                    return;
+                                }
+                                var data = res.data;
+                                if ( filesEl ) { filesEl.textContent = data.files_scanned.toLocaleString(); }
+                                if ( dirsEl )  { dirsEl.textContent  = data.dirs_scanned.toLocaleString(); }
+
+                                if ( 'complete' === data.status ) {
+                                    // Switch to the completed-scan view (breadcrumb + folder
+                                    // table), which is rendered server-side — simplest way to
+                                    // get there is one final reload, not per-chunk ones.
+                                    window.location.reload();
+                                } else {
+                                    // No artificial delay — chain immediately. Each chunk is
+                                    // already time-boxed server-side (a few seconds), which is
+                                    // what naturally paces these updates; waiting on top of that
+                                    // would only slow the scan down for no benefit.
+                                    tick();
+                                }
+                            } )
+                            .catch( function () {
+                                setTimeout( tick, 5000 );
+                            } );
+                    }
+
+                    tick();
+                } )();
             </script>
 
         <?php elseif ( 'complete' === $rsd_rb_disk_state['status'] ) :

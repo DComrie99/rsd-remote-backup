@@ -70,6 +70,9 @@ class RSD_RB_Plugin {
         // Maintenance screen actions (e.g. delete all comments)
         add_action( 'admin_init', array( $this, 'handle_maintenance_actions' ) );
 
+        // Disk Usage tab's live progress poll (logged-in admin only)
+        add_action( 'wp_ajax_rsd_rb_disk_scan_tick', array( $this, 'ajax_disk_scan_tick' ) );
+
         // Background scan (WP-Cron)
         add_action( 'rsd_rb_scan', array( $this, 'run_scan' ) );
 
@@ -590,14 +593,6 @@ class RSD_RB_Plugin {
                 wp_redirect( add_query_arg( 'rb_tab', 'disk-usage', $redirect ) );
                 exit;
 
-            case 'disk_scan_continue':
-                if ( ! wp_verify_nonce( $nonce, 'rsd_rb_disk_scan_continue' ) ) {
-                    wp_die( esc_html__( 'Security check failed.', 'rsd-remote-backup' ) );
-                }
-                RSD_RB_Disk_Scanner::run_chunk();
-                wp_redirect( add_query_arg( 'rb_tab', 'disk-usage', $redirect ) );
-                exit;
-
             case 'disk_scan_cancel':
                 if ( ! wp_verify_nonce( $nonce, 'rsd_rb_disk_scan_cancel' ) ) {
                     wp_die( esc_html__( 'Security check failed.', 'rsd-remote-backup' ) );
@@ -606,6 +601,34 @@ class RSD_RB_Plugin {
                 wp_redirect( add_query_arg( 'rb_tab', 'disk-usage', $redirect ) );
                 exit;
         }
+    }
+
+    /**
+     * Background poll behind the Disk Usage tab's live progress display —
+     * runs one chunk and returns the updated counters as JSON, so the page
+     * can update in place instead of doing a full reload per chunk (which
+     * is what an earlier version of this feature did, and which turned out
+     * to hijack navigation away from whatever tab the admin was actually
+     * looking at). Same nonce + capability posture as every GET-based
+     * action above, just checked via check_ajax_referer() instead.
+     */
+    public function ajax_disk_scan_tick(): void {
+        check_ajax_referer( 'rsd_rb_disk_scan_tick', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'Forbidden' ), 403 );
+        }
+
+        RSD_RB_Disk_Scanner::run_chunk();
+        $state = RSD_RB_Disk_Scanner::get_state();
+
+        wp_send_json_success(
+            array(
+                'status'        => $state['status'],
+                'files_scanned' => $state['files_scanned'],
+                'dirs_scanned'  => $state['dirs_scanned'],
+                'error_count'   => count( $state['errors'] ),
+            )
+        );
     }
 
     private function test_connection(): string {
