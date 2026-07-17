@@ -18,8 +18,9 @@ defined( 'ABSPATH' ) || exit;
  */
 class RSD_RB_Disk_Scanner {
 
-    const OPTION        = 'rsd_rb_disk_scan_state';
-    const CHUNK_SECONDS = 5;
+    const OPTION           = 'rsd_rb_disk_scan_state';
+    const CHUNK_SECONDS    = 5;
+    const MAX_FILES_LISTED = 500;
 
     public static function get_state(): array {
         return get_option( self::OPTION, self::default_state() );
@@ -254,6 +255,68 @@ class RSD_RB_Disk_Scanner {
         );
 
         return $rows;
+    }
+
+    /**
+     * Individual loose files directly inside $path (not subfolders — those
+     * are listed via get_children_with_sizes()), with their own sizes,
+     * sorted biggest first. Deliberately NOT collected during the main
+     * scan/run_chunk() and NOT stored in the persisted state — the scan
+     * only ever needs to know each folder's own_size *total*, and recording
+     * every individual file's name+size for the whole site would make the
+     * persisted option balloon in proportion to total file count (easily
+     * tens of thousands of entries) instead of folder count (hundreds).
+     * Computed here on demand instead: a single, non-recursive directory
+     * listing scoped to just one folder, which stays cheap regardless of
+     * how large the rest of the site is. Only callable for a path the main
+     * scan actually discovered (see is_known_path()).
+     *
+     * @return array{files: array<int, array{name:string, size:int}>, total:int, truncated:bool}
+     */
+    public static function list_files_in( string $path ): array {
+        $entries = @scandir( $path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+        if ( false === $entries ) {
+            return array(
+                'files'     => array(),
+                'total'     => 0,
+                'truncated' => false,
+            );
+        }
+
+        $files = array();
+        foreach ( $entries as $entry ) {
+            if ( '.' === $entry || '..' === $entry ) {
+                continue;
+            }
+            $full = $path . DIRECTORY_SEPARATOR . $entry;
+            if ( is_link( $full ) || is_dir( $full ) ) {
+                continue; // Subfolders are listed separately — this is loose files only.
+            }
+            $size    = @filesize( $full ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+            $files[] = array(
+                'name' => $entry,
+                'size' => ( false !== $size ) ? $size : 0,
+            );
+        }
+
+        usort(
+            $files,
+            static function ( $a, $b ) {
+                return $b['size'] <=> $a['size'];
+            }
+        );
+
+        $total     = count( $files );
+        $truncated = $total > self::MAX_FILES_LISTED;
+        if ( $truncated ) {
+            $files = array_slice( $files, 0, self::MAX_FILES_LISTED );
+        }
+
+        return array(
+            'files'     => $files,
+            'total'     => $total,
+            'truncated' => $truncated,
+        );
     }
 
     /**
