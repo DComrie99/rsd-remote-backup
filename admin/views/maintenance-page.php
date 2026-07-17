@@ -190,18 +190,7 @@ $rsd_rb_disk_view = ( isset( $_GET['rb_disk_view'] ) && 'files' === $_GET['rb_di
             </script>
 
         <?php elseif ( 'complete' === $rsd_rb_disk_state['status'] ) :
-            $rsd_rb_disk_root = $rsd_rb_disk_state['root'];
-            $rsd_rb_disk_rel  = trim( str_replace( $rsd_rb_disk_root, '', $rsd_rb_disk_path ), '/\\' );
-            $rsd_rb_disk_segments = ( '' === $rsd_rb_disk_rel ) ? array() : preg_split( '#[\\\\/]+#', $rsd_rb_disk_rel );
-
-            // Every navigation link below is built from this — current URL with
-            // rb_disk_view stripped — rather than the raw current URL, so that
-            // leaving the per-file view (rb_disk_view=files) via any link
-            // (breadcrumb, folder row, back-link) actually leaves it instead of
-            // silently carrying that param forward (add_query_arg() only touches
-            // the keys it's explicitly given, so it wouldn't drop this otherwise).
-            $rsd_rb_disk_base_url = remove_query_arg( 'rb_disk_view' );
-
+            $rsd_rb_disk_view_nonce = wp_create_nonce( 'rsd_rb_disk_scan_view' );
             $rsd_rb_disk_rescan_url = wp_nonce_url(
                 admin_url( 'admin.php?page=' . RSD_RB_Maintenance_Page::PAGE_SLUG . '&rb_maint_action=disk_scan_start' ),
                 'rsd_rb_disk_scan_start'
@@ -225,98 +214,51 @@ $rsd_rb_disk_view = ( isset( $_GET['rb_disk_view'] ) && 'files' === $_GET['rb_di
                 <a href="<?php echo esc_url( $rsd_rb_disk_rescan_url ); ?>" class="button button-secondary button-small"><?php esc_html_e( 'Rescan', 'rsd-remote-backup' ); ?></a>
             </p>
 
-            <p class="rsd-rb-breadcrumb">
-                <?php
-                $rsd_rb_crumb_path = $rsd_rb_disk_root;
-                printf(
-                    '<a href="%s">%s</a>',
-                    esc_url( add_query_arg( array( 'rb_tab' => 'disk-usage', 'rb_disk_path' => rawurlencode( $rsd_rb_disk_root ) ), $rsd_rb_disk_base_url ) ),
-                    esc_html__( 'Site Root', 'rsd-remote-backup' )
-                );
-                foreach ( $rsd_rb_disk_segments as $rsd_rb_segment ) {
-                    $rsd_rb_crumb_path .= DIRECTORY_SEPARATOR . $rsd_rb_segment;
-                    echo ' / ';
-                    printf(
-                        '<a href="%s">%s</a>',
-                        esc_url( add_query_arg( array( 'rb_tab' => 'disk-usage', 'rb_disk_path' => rawurlencode( $rsd_rb_crumb_path ) ), $rsd_rb_disk_base_url ) ),
-                        esc_html( $rsd_rb_segment )
-                    );
-                }
-                ?>
-            </p>
+            <div id="rsd-rb-disk-browser">
+                <?php require RSD_RB_DIR . 'admin/views/partials/disk-usage-browser.php'; ?>
+            </div>
 
-            <?php if ( 'files' === $rsd_rb_disk_view ) :
-                $rsd_rb_file_data      = RSD_RB_Disk_Scanner::list_files_in( $rsd_rb_disk_path );
-                $rsd_rb_back_to_folder = add_query_arg( array( 'rb_tab' => 'disk-usage', 'rb_disk_path' => rawurlencode( $rsd_rb_disk_path ) ), $rsd_rb_disk_base_url );
-                ?>
-                <p><a href="<?php echo esc_url( $rsd_rb_back_to_folder ); ?>">&larr; <?php esc_html_e( 'Back to folder view', 'rsd-remote-backup' ); ?></a></p>
+            <script>
+                ( function () {
+                    var container = document.getElementById( 'rsd-rb-disk-browser' );
+                    var nonce     = <?php echo wp_json_encode( $rsd_rb_disk_view_nonce ); ?>;
 
-                <?php if ( $rsd_rb_file_data['truncated'] ) : ?>
-                    <p class="description">
-                        <?php
-                        printf(
-                            /* translators: 1: number of files shown 2: total number of files actually in the folder */
-                            esc_html__( 'Showing the %1$s largest of %2$s files in this folder (capped to keep this page responsive on folders with an unusually large number of loose files).', 'rsd-remote-backup' ),
-                            esc_html( number_format_i18n( count( $rsd_rb_file_data['files'] ) ) ),
-                            esc_html( number_format_i18n( $rsd_rb_file_data['total'] ) )
-                        );
-                        ?>
-                    </p>
-                <?php endif; ?>
+                    // Event delegation on the stable outer container — links inside
+                    // get replaced wholesale on every navigation, so binding to each
+                    // <a> individually would need re-binding after every update.
+                    container.addEventListener( 'click', function ( e ) {
+                        var link = e.target.closest( 'a[data-disk-path]' );
+                        if ( ! link || ! container.contains( link ) ) {
+                            return;
+                        }
+                        e.preventDefault();
 
-                <table class="widefat striped rsd-rb-jobs-table" style="max-width:640px;">
-                    <thead>
-                        <tr>
-                            <th><?php esc_html_e( 'File', 'rsd-remote-backup' ); ?></th>
-                            <th><?php esc_html_e( 'Size', 'rsd-remote-backup' ); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ( $rsd_rb_file_data['files'] as $rsd_rb_file ) : ?>
-                            <tr>
-                                <td>📄 <?php echo esc_html( $rsd_rb_file['name'] ); ?></td>
-                                <td><?php echo esc_html( size_format( $rsd_rb_file['size'], 2 ) ); ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                        <?php if ( empty( $rsd_rb_file_data['files'] ) ) : ?>
-                            <tr><td colspan="2"><em><?php esc_html_e( 'No loose files found here (they may have changed since the scan completed).', 'rsd-remote-backup' ); ?></em></td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+                        var path = link.getAttribute( 'data-disk-path' );
+                        var view = link.getAttribute( 'data-disk-view' ) || 'folder';
 
-            <?php else :
-                $rsd_rb_disk_rows = RSD_RB_Disk_Scanner::get_children_with_sizes( $rsd_rb_disk_path );
-                ?>
-                <table class="widefat striped rsd-rb-jobs-table" style="max-width:640px;">
-                    <thead>
-                        <tr>
-                            <th><?php esc_html_e( 'Name', 'rsd-remote-backup' ); ?></th>
-                            <th><?php esc_html_e( 'Size', 'rsd-remote-backup' ); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ( $rsd_rb_disk_rows as $rsd_rb_row ) : ?>
-                            <tr>
-                                <td>
-                                    <?php if ( $rsd_rb_row['is_dir'] ) : ?>
-                                        <a href="<?php echo esc_url( add_query_arg( array( 'rb_tab' => 'disk-usage', 'rb_disk_path' => rawurlencode( $rsd_rb_row['path'] ) ), $rsd_rb_disk_base_url ) ); ?>">
-                                            📁 <?php echo esc_html( $rsd_rb_row['name'] ); ?>
-                                        </a>
-                                    <?php else : ?>
-                                        <a href="<?php echo esc_url( add_query_arg( array( 'rb_tab' => 'disk-usage', 'rb_disk_path' => rawurlencode( $rsd_rb_row['path'] ), 'rb_disk_view' => 'files' ), $rsd_rb_disk_base_url ) ); ?>">
-                                            <em><?php echo esc_html( $rsd_rb_row['name'] ); ?></em>
-                                        </a>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?php echo esc_html( size_format( $rsd_rb_row['size'], 2 ) ); ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                        <?php if ( empty( $rsd_rb_disk_rows ) ) : ?>
-                            <tr><td colspan="2"><em><?php esc_html_e( 'This folder is empty.', 'rsd-remote-backup' ); ?></em></td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            <?php endif; ?>
+                        container.style.opacity = '0.5'; // brief feedback while the request is in flight.
+
+                        fetch( ajaxurl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: 'action=rsd_rb_disk_scan_view'
+                                + '&nonce=' + encodeURIComponent( nonce )
+                                + '&path=' + encodeURIComponent( path )
+                                + '&view=' + encodeURIComponent( view )
+                        } )
+                            .then( function ( r ) { return r.json(); } )
+                            .then( function ( res ) {
+                                if ( res && res.success ) {
+                                    container.innerHTML = res.data.html;
+                                }
+                                container.style.opacity = '';
+                            } )
+                            .catch( function () {
+                                container.style.opacity = '';
+                            } );
+                    } );
+                } )();
+            </script>
 
         <?php else : /* idle */
             $rsd_rb_disk_start_url = wp_nonce_url(

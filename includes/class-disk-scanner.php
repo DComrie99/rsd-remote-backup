@@ -32,8 +32,10 @@ class RSD_RB_Disk_Scanner {
             'root'          => '',
             'stack'         => array(),
             'own_size'      => array(),
+            'own_mtime'     => array(),
             'children'      => array(),
             'totals'        => null,
+            'mtime_totals'  => null,
             'files_scanned' => 0,
             'dirs_scanned'  => 0,
             'errors'        => array(),
@@ -51,8 +53,10 @@ class RSD_RB_Disk_Scanner {
                 'root'          => $root,
                 'stack'         => array( array( 't' => 'dir', 'path' => $root ) ),
                 'own_size'      => array(),
+                'own_mtime'     => array(),
                 'children'      => array(),
                 'totals'        => null,
+                'mtime_totals'  => null,
                 'files_scanned' => 0,
                 'dirs_scanned'  => 1, // the root itself
                 'errors'        => array(),
@@ -92,13 +96,14 @@ class RSD_RB_Disk_Scanner {
             return;
         }
 
-        $deadline = microtime( true ) + self::CHUNK_SECONDS;
-        $stack    = $state['stack'];
-        $own_size = $state['own_size'];
-        $children = $state['children'];
-        $errors   = $state['errors'];
-        $files    = $state['files_scanned'];
-        $dirs     = $state['dirs_scanned'];
+        $deadline  = microtime( true ) + self::CHUNK_SECONDS;
+        $stack     = $state['stack'];
+        $own_size  = $state['own_size'];
+        $own_mtime = $state['own_mtime'];
+        $children  = $state['children'];
+        $errors    = $state['errors'];
+        $files     = $state['files_scanned'];
+        $dirs      = $state['dirs_scanned'];
 
         while ( ! empty( $stack ) ) {
             $task = array_pop( $stack );
@@ -144,8 +149,16 @@ class RSD_RB_Disk_Scanner {
                         $stack[]            = array( 't' => 'dir', 'path' => $path );
                         ++$dirs;
                     } else {
+                        // filesize()/filemtime() on the same path share PHP's own
+                        // per-request stat cache, so the second call here is
+                        // effectively free — no meaningful extra cost for tracking
+                        // both.
                         $size              = @filesize( $path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+                        $mtime             = @filemtime( $path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
                         $own_size[ $dir ] += ( false !== $size ) ? $size : 0;
+                        if ( false !== $mtime && ( ! isset( $own_mtime[ $dir ] ) || $mtime > $own_mtime[ $dir ] ) ) {
+                            $own_mtime[ $dir ] = $mtime;
+                        }
                         ++$files;
                     }
 
@@ -171,6 +184,7 @@ class RSD_RB_Disk_Scanner {
 
         $state['stack']         = $stack;
         $state['own_size']      = $own_size;
+        $state['own_mtime']     = $own_mtime;
         $state['children']      = $children;
         $state['errors']        = $errors;
         $state['files_scanned'] = $files;
@@ -180,6 +194,7 @@ class RSD_RB_Disk_Scanner {
             $state['status']       = 'complete';
             $state['completed_at'] = time();
             $state['totals']       = self::compute_totals( $state['root'], $own_size, $children );
+            $state['mtime_totals'] = self::compute_mtime_totals( $state['root'], $own_mtime, $children );
         }
 
         update_option( self::OPTION, $state, false );
@@ -212,11 +227,57 @@ class RSD_RB_Disk_Scanner {
     }
 
     /**
+     * Bottom-up "most recently modified file anywhere in this subtree"
+     * aggregation — same shape as compute_totals() but taking the max
+     * mtime instead of a sum, and null-safe (a folder with no files
+     * anywhere beneath it, direct or nested, has no mtime signal at all).
+     * Far more useful than a folder's own filesystem mtime for spotting
+     * where new/changed content landed — a directory entry's own mtime only
+     * changes when something is added/removed/renamed directly inside it,
+     * not when a file deep inside is modified, and never propagates to
+     * ancestor folders on its own.
+     *
+     * @return array<string,int|null>
+     */
+    private static function compute_mtime_totals( string $root, array $own_mtime, array $children ): array {
+        $totals = array();
+        $visit  = static function ( string $path ) use ( &$visit, &$totals, $own_mtime, $children ) {
+            if ( array_key_exists( $path, $totals ) ) {
+                return $totals[ $path ];
+            }
+            $max = $own_mtime[ $path ] ?? null;
+            foreach ( $children[ $path ] ?? array() as $child ) {
+                $child_max = $visit( $child );
+                if ( null !== $child_max && ( null === $max || $child_max > $max ) ) {
+                    $max = $child_max;
+                }
+            }
+            $totals[ $path ] = $max;
+            return $max;
+        };
+        $visit( $root );
+        return $totals;
+    }
+
+    /**
+     * Formats a nullable UNIX timestamp using this site's configured date
+     * and time format, for consistent "Modified" display wherever a mtime
+     * (folder-level or per-file) is shown. Null means no file was found
+     * anywhere in that item (an empty folder, or a stat() that failed).
+     */
+    public static function format_mtime( ?int $mtime ): string {
+        if ( null === $mtime ) {
+            return '—';
+        }
+        return date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $mtime );
+    }
+
+    /**
      * Immediate children of $path, each with its own recursive total,
      * sorted biggest first. Only meaningful once the scan has completed
      * (totals are only computed at that point).
      *
-     * @return array<int, array{path:string, name:string, size:int, is_dir:bool}>
+     * @return array<int, array{path:string, name:string, size:int, mtime:int|null, is_dir:bool}>
      */
     public static function get_children_with_sizes( string $path ): array {
         $state = self::get_state();
@@ -230,6 +291,7 @@ class RSD_RB_Disk_Scanner {
                 'path'   => $child,
                 'name'   => basename( $child ),
                 'size'   => $state['totals'][ $child ] ?? 0,
+                'mtime'  => $state['mtime_totals'][ $child ] ?? null,
                 'is_dir' => true,
             );
         }
@@ -243,6 +305,7 @@ class RSD_RB_Disk_Scanner {
                 'path'   => $path,
                 'name'   => __( '(files directly in this folder)', 'rsd-remote-backup' ),
                 'size'   => $own,
+                'mtime'  => $state['own_mtime'][ $path ] ?? null,
                 'is_dir' => false,
             );
         }
@@ -271,7 +334,7 @@ class RSD_RB_Disk_Scanner {
      * how large the rest of the site is. Only callable for a path the main
      * scan actually discovered (see is_known_path()).
      *
-     * @return array{files: array<int, array{name:string, size:int}>, total:int, truncated:bool}
+     * @return array{files: array<int, array{name:string, size:int, mtime:int|null}>, total:int, truncated:bool}
      */
     public static function list_files_in( string $path ): array {
         $entries = @scandir( $path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
@@ -293,9 +356,11 @@ class RSD_RB_Disk_Scanner {
                 continue; // Subfolders are listed separately — this is loose files only.
             }
             $size    = @filesize( $full ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+            $mtime   = @filemtime( $full ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
             $files[] = array(
-                'name' => $entry,
-                'size' => ( false !== $size ) ? $size : 0,
+                'name'  => $entry,
+                'size'  => ( false !== $size ) ? $size : 0,
+                'mtime' => ( false !== $mtime ) ? $mtime : null,
             );
         }
 

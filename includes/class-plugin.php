@@ -73,6 +73,9 @@ class RSD_RB_Plugin {
         // Disk Usage tab's live progress poll (logged-in admin only)
         add_action( 'wp_ajax_rsd_rb_disk_scan_tick', array( $this, 'ajax_disk_scan_tick' ) );
 
+        // Disk Usage tab's in-place tree navigation (logged-in admin only)
+        add_action( 'wp_ajax_rsd_rb_disk_scan_view', array( $this, 'ajax_disk_scan_view' ) );
+
         // Background scan (WP-Cron)
         add_action( 'rsd_rb_scan', array( $this, 'run_scan' ) );
 
@@ -629,6 +632,36 @@ class RSD_RB_Plugin {
                 'error_count'   => count( $state['errors'] ),
             )
         );
+    }
+
+    /**
+     * Renders the Disk Usage tab's breadcrumb + folder/file table for a
+     * given path and returns it as an HTML fragment, so clicking a
+     * breadcrumb/folder/file link updates in place instead of doing a full
+     * page reload — the same complaint (and fix) as the scan's own live
+     * progress display, just for browsing a completed scan's results
+     * rather than watching one run. $path is only trusted once confirmed
+     * to be something this site's own completed scan actually discovered
+     * (is_known_path()) — it arrives as untrusted POST data otherwise.
+     */
+    public function ajax_disk_scan_view(): void {
+        check_ajax_referer( 'rsd_rb_disk_scan_view', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'Forbidden' ), 403 );
+        }
+
+        $rsd_rb_disk_path = isset( $_POST['path'] ) ? wp_unslash( $_POST['path'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash
+        if ( ! RSD_RB_Disk_Scanner::is_known_path( $rsd_rb_disk_path ) ) {
+            wp_send_json_error( array( 'message' => 'Unknown path' ), 400 );
+        }
+
+        $rsd_rb_disk_view = ( isset( $_POST['view'] ) && 'files' === $_POST['view'] ) ? 'files' : 'folder';
+
+        ob_start();
+        require RSD_RB_DIR . 'admin/views/partials/disk-usage-browser.php';
+        $html = ob_get_clean();
+
+        wp_send_json_success( array( 'html' => $html ) );
     }
 
     private function test_connection(): string {

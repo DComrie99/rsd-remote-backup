@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.8.7
+Stable tag: 0.8.8
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,10 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.8.8 =
+* New: Disk Usage tab now shows a "Modified" column for both folders and individual files — for a file, its own last-modified time; for a folder, the most recently modified file anywhere within it (recursively), which is far more useful for spotting where new/changed content landed than a folder's own filesystem mtime (which only changes when something is added/removed directly inside it, and never propagates to parent folders on its own). Tracked during the main scan at negligible extra cost — filesize() and filemtime() on the same path share PHP's per-request stat cache, so capturing both is effectively free.
+* Changed: navigating the completed scan's folder tree (breadcrumbs, folder rows, the per-file drill-down, the "back to folder view" link) no longer does a full page reload — it now updates in place via the same AJAX approach already used for the live scanning progress. Only "Start Scan"/"Rescan"/"Cancel Scan" still do a full navigation, since those actually change state; browsing an already-completed scan's results is pure read-only navigation now. Trade-off: since the browser's URL no longer changes as you browse, refreshing the page or bookmarking a specific folder will land back on the site root rather than where you were — acceptable for a diagnostic screen, but worth knowing.
 
 = 0.8.7 =
 * New: Disk Usage tab's "(files directly in this folder)" row is now clickable — drills into a per-file listing (name + size, biggest first) of that folder's loose files, capped at the 500 largest on folders with an unusually large number of them. Computed on demand when clicked, not during the main scan — the scan itself still only ever records a per-folder total, so the persisted scan state stays proportional to folder count rather than ballooning to cover every individual file on the site.
