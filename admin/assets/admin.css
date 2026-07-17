@@ -127,3 +127,14 @@
     background: #a02222;
     border-color: #a02222;
 }
+
+/* ---- Disk Usage per-row delete ---- */
+.rsd-rb-row-delete {
+    color: #d63638;
+    text-decoration: none;
+}
+
+.rsd-rb-row-delete:hover {
+    color: #a02222;
+    text-decoration: underline;
+}

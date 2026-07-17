@@ -274,6 +274,81 @@ $current_provider = RSD_RB_Settings::get_provider();
                     </td>
                 </tr>
             </table>
+
+            <!-- API Access -->
+            <h2><?php esc_html_e( 'CRM API Access', 'rsd-remote-backup' ); ?></h2>
+            <p class="description">
+                <?php esc_html_e( 'Use these endpoints and key to connect your RSD CRM. Send the key as an HTTP header on every request.', 'rsd-remote-backup' ); ?>
+            </p>
+            <table class="form-table" role="presentation">
+                <tr>
+                    <th scope="row"><?php esc_html_e( 'Status endpoint', 'rsd-remote-backup' ); ?></th>
+                    <td>
+                        <code><?php echo esc_html( rest_url( 'rsd-rb/v1/status' ) ); ?></code>
+                        <p class="description"><?php esc_html_e( 'GET — returns all jobs, provider, last/next scan time.', 'rsd-remote-backup' ); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e( 'Trigger endpoint', 'rsd-remote-backup' ); ?></th>
+                    <td>
+                        <code><?php echo esc_html( rest_url( 'rsd-rb/v1/trigger' ) ); ?></code>
+                        <p class="description"><?php esc_html_e( 'POST — runs the backup scanner and schedules any pending uploads.', 'rsd-remote-backup' ); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e( 'Server stats endpoint', 'rsd-remote-backup' ); ?></th>
+                    <td>
+                        <code><?php echo esc_html( rest_url( 'rsd-rb/v1/server-stats' ) ); ?></code>
+                        <p class="description"><?php esc_html_e( 'GET — core WP/server health plus plugin-specific stats (e.g. WP Rocket Insights score).', 'rsd-remote-backup' ); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e( 'Required header', 'rsd-remote-backup' ); ?></th>
+                    <td><code>X-RSD-API-Key: &lt;key&gt;</code> &nbsp;<?php esc_html_e( 'or', 'rsd-remote-backup' ); ?>&nbsp; <code>Authorization: Bearer &lt;key&gt;</code></td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e( 'API Key', 'rsd-remote-backup' ); ?></th>
+                    <td>
+                        <?php
+                        // The key is stored as a SHA-256 hash and is never shown from the DB.
+                        // After generation or regeneration the raw key is held for 1 hour so
+                        // the admin can copy it. After that it is gone for good.
+                        $reveal_key = RSD_RB_Rest_Api::get_reveal_key();
+                        $key_is_set = '' !== get_option( 'rsd_rb_api_key', '' );
+                        ?>
+
+                        <?php if ( $reveal_key ) : ?>
+                            <div class="notice notice-warning inline" style="margin:0 0 8px;">
+                                <p><strong><?php esc_html_e( 'Copy this key now — it will not be shown again after 1 hour.', 'rsd-remote-backup' ); ?></strong></p>
+                            </div>
+                            <input type="text" id="rsd-rb-api-key"
+                                   value="<?php echo esc_attr( $reveal_key ); ?>"
+                                   class="regular-text"
+                                   readonly
+                                   style="font-family:monospace;" />
+                            <button type="button" class="button button-secondary"
+                                    onclick="(function(){var f=document.getElementById('rsd-rb-api-key');f.select();navigator.clipboard.writeText(f.value).catch(function(){f.select();});})()">
+                                <?php esc_html_e( 'Copy', 'rsd-remote-backup' ); ?>
+                            </button>
+                        <?php elseif ( $key_is_set ) : ?>
+                            <span style="font-family:monospace;letter-spacing:2px;">••••••••••••••••••••••••••••••••</span>
+                            &nbsp;<em><?php esc_html_e( '(active)', 'rsd-remote-backup' ); ?></em>
+                        <?php else : ?>
+                            <em><?php esc_html_e( 'No key generated yet.', 'rsd-remote-backup' ); ?></em>
+                        <?php endif; ?>
+
+                        &nbsp;
+                        <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=rsd-remote-backup&rb_action=regenerate_api_key' ), 'rsd_rb_regenerate_api_key' ) ); ?>"
+                           class="button button-secondary"
+                           onclick="return confirm('<?php echo esc_js( __( 'Regenerate the API key? Any CRM connections using the old key will stop working until you update them.', 'rsd-remote-backup' ) ); ?>')">
+                            <?php esc_html_e( 'Regenerate', 'rsd-remote-backup' ); ?>
+                        </a>
+                        <p class="description">
+                            <?php esc_html_e( 'The raw key is stored as a SHA-256 hash and never written to the database in plain text. Regenerating immediately invalidates the old key.', 'rsd-remote-backup' ); ?>
+                        </p>
+                    </td>
+                </tr>
+            </table>
         </div><!-- #tab-license -->
 
         <?php submit_button(); ?>
@@ -794,81 +869,6 @@ $current_provider = RSD_RB_Settings::get_provider();
             <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=rsd-remote-backup&rb_action=clear_log' ), 'rsd_rb_clear_log' ) ); ?>"
                class="button button-secondary"><?php esc_html_e( 'Clear Log', 'rsd-remote-backup' ); ?></a>
         </p>
-
-        <!-- API Access -->
-        <h2><?php esc_html_e( 'CRM API Access', 'rsd-remote-backup' ); ?></h2>
-        <p class="description">
-            <?php esc_html_e( 'Use these endpoints and key to connect your RSD CRM. Send the key as an HTTP header on every request.', 'rsd-remote-backup' ); ?>
-        </p>
-        <table class="form-table" role="presentation">
-            <tr>
-                <th scope="row"><?php esc_html_e( 'Status endpoint', 'rsd-remote-backup' ); ?></th>
-                <td>
-                    <code><?php echo esc_html( rest_url( 'rsd-rb/v1/status' ) ); ?></code>
-                    <p class="description"><?php esc_html_e( 'GET — returns all jobs, provider, last/next scan time.', 'rsd-remote-backup' ); ?></p>
-                </td>
-            </tr>
-            <tr>
-                <th scope="row"><?php esc_html_e( 'Trigger endpoint', 'rsd-remote-backup' ); ?></th>
-                <td>
-                    <code><?php echo esc_html( rest_url( 'rsd-rb/v1/trigger' ) ); ?></code>
-                    <p class="description"><?php esc_html_e( 'POST — runs the backup scanner and schedules any pending uploads.', 'rsd-remote-backup' ); ?></p>
-                </td>
-            </tr>
-            <tr>
-                <th scope="row"><?php esc_html_e( 'Server stats endpoint', 'rsd-remote-backup' ); ?></th>
-                <td>
-                    <code><?php echo esc_html( rest_url( 'rsd-rb/v1/server-stats' ) ); ?></code>
-                    <p class="description"><?php esc_html_e( 'GET — core WP/server health plus plugin-specific stats (e.g. WP Rocket Insights score).', 'rsd-remote-backup' ); ?></p>
-                </td>
-            </tr>
-            <tr>
-                <th scope="row"><?php esc_html_e( 'Required header', 'rsd-remote-backup' ); ?></th>
-                <td><code>X-RSD-API-Key: &lt;key&gt;</code> &nbsp;<?php esc_html_e( 'or', 'rsd-remote-backup' ); ?>&nbsp; <code>Authorization: Bearer &lt;key&gt;</code></td>
-            </tr>
-            <tr>
-                <th scope="row"><?php esc_html_e( 'API Key', 'rsd-remote-backup' ); ?></th>
-                <td>
-                    <?php
-                    // The key is stored as a SHA-256 hash and is never shown from the DB.
-                    // After generation or regeneration the raw key is held for 1 hour so
-                    // the admin can copy it. After that it is gone for good.
-                    $reveal_key = RSD_RB_Rest_Api::get_reveal_key();
-                    $key_is_set = '' !== get_option( 'rsd_rb_api_key', '' );
-                    ?>
-
-                    <?php if ( $reveal_key ) : ?>
-                        <div class="notice notice-warning inline" style="margin:0 0 8px;">
-                            <p><strong><?php esc_html_e( 'Copy this key now — it will not be shown again after 1 hour.', 'rsd-remote-backup' ); ?></strong></p>
-                        </div>
-                        <input type="text" id="rsd-rb-api-key"
-                               value="<?php echo esc_attr( $reveal_key ); ?>"
-                               class="regular-text"
-                               readonly
-                               style="font-family:monospace;" />
-                        <button type="button" class="button button-secondary"
-                                onclick="(function(){var f=document.getElementById('rsd-rb-api-key');f.select();navigator.clipboard.writeText(f.value).catch(function(){f.select();});})()">
-                            <?php esc_html_e( 'Copy', 'rsd-remote-backup' ); ?>
-                        </button>
-                    <?php elseif ( $key_is_set ) : ?>
-                        <span style="font-family:monospace;letter-spacing:2px;">••••••••••••••••••••••••••••••••</span>
-                        &nbsp;<em><?php esc_html_e( '(active)', 'rsd-remote-backup' ); ?></em>
-                    <?php else : ?>
-                        <em><?php esc_html_e( 'No key generated yet.', 'rsd-remote-backup' ); ?></em>
-                    <?php endif; ?>
-
-                    &nbsp;
-                    <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=rsd-remote-backup&rb_action=regenerate_api_key' ), 'rsd_rb_regenerate_api_key' ) ); ?>"
-                       class="button button-secondary"
-                       onclick="return confirm('<?php echo esc_js( __( 'Regenerate the API key? Any CRM connections using the old key will stop working until you update them.', 'rsd-remote-backup' ) ); ?>')">
-                        <?php esc_html_e( 'Regenerate', 'rsd-remote-backup' ); ?>
-                    </a>
-                    <p class="description">
-                        <?php esc_html_e( 'The raw key is stored as a SHA-256 hash and never written to the database in plain text. Regenerating immediately invalidates the old key.', 'rsd-remote-backup' ); ?>
-                    </p>
-                </td>
-            </tr>
-        </table>
 
         <!-- Environment Diagnostics -->
         <h2><?php esc_html_e( 'Environment Diagnostics', 'rsd-remote-backup' ); ?></h2>

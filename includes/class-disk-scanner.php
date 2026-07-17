@@ -334,7 +334,7 @@ class RSD_RB_Disk_Scanner {
      * how large the rest of the site is. Only callable for a path the main
      * scan actually discovered (see is_known_path()).
      *
-     * @return array{files: array<int, array{name:string, size:int, mtime:int|null}>, total:int, truncated:bool}
+     * @return array{files: array<int, array{name:string, path:string, size:int, mtime:int|null}>, total:int, truncated:bool}
      */
     public static function list_files_in( string $path ): array {
         $entries = @scandir( $path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
@@ -359,6 +359,7 @@ class RSD_RB_Disk_Scanner {
             $mtime   = @filemtime( $full ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
             $files[] = array(
                 'name'  => $entry,
+                'path'  => $full,
                 'size'  => ( false !== $size ) ? $size : 0,
                 'mtime' => ( false !== $mtime ) ? $mtime : null,
             );

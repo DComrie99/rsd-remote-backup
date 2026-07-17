@@ -190,7 +190,8 @@ $rsd_rb_disk_view = ( isset( $_GET['rb_disk_view'] ) && 'files' === $_GET['rb_di
             </script>
 
         <?php elseif ( 'complete' === $rsd_rb_disk_state['status'] ) :
-            $rsd_rb_disk_view_nonce = wp_create_nonce( 'rsd_rb_disk_scan_view' );
+            $rsd_rb_disk_view_nonce   = wp_create_nonce( 'rsd_rb_disk_scan_view' );
+            $rsd_rb_disk_delete_nonce = wp_create_nonce( 'rsd_rb_disk_file_delete' );
             $rsd_rb_disk_rescan_url = wp_nonce_url(
                 admin_url( 'admin.php?page=' . RSD_RB_Maintenance_Page::PAGE_SLUG . '&rb_maint_action=disk_scan_start' ),
                 'rsd_rb_disk_scan_start'
@@ -220,29 +221,22 @@ $rsd_rb_disk_view = ( isset( $_GET['rb_disk_view'] ) && 'files' === $_GET['rb_di
 
             <script>
                 ( function () {
-                    var container = document.getElementById( 'rsd-rb-disk-browser' );
-                    var nonce     = <?php echo wp_json_encode( $rsd_rb_disk_view_nonce ); ?>;
+                    var container    = document.getElementById( 'rsd-rb-disk-browser' );
+                    var viewNonce    = <?php echo wp_json_encode( $rsd_rb_disk_view_nonce ); ?>;
+                    var deleteNonce  = <?php echo wp_json_encode( $rsd_rb_disk_delete_nonce ); ?>;
+                    var currentPath  = <?php echo wp_json_encode( $rsd_rb_disk_path ); ?>;
+                    var currentView  = <?php echo wp_json_encode( $rsd_rb_disk_view ); ?>;
 
-                    // Event delegation on the stable outer container — links inside
-                    // get replaced wholesale on every navigation, so binding to each
-                    // <a> individually would need re-binding after every update.
-                    container.addEventListener( 'click', function ( e ) {
-                        var link = e.target.closest( 'a[data-disk-path]' );
-                        if ( ! link || ! container.contains( link ) ) {
-                            return;
-                        }
-                        e.preventDefault();
-
-                        var path = link.getAttribute( 'data-disk-path' );
-                        var view = link.getAttribute( 'data-disk-view' ) || 'folder';
-
+                    function loadView( path, view ) {
+                        currentPath = path;
+                        currentView = view;
                         container.style.opacity = '0.5'; // brief feedback while the request is in flight.
 
                         fetch( ajaxurl, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                             body: 'action=rsd_rb_disk_scan_view'
-                                + '&nonce=' + encodeURIComponent( nonce )
+                                + '&nonce=' + encodeURIComponent( viewNonce )
                                 + '&path=' + encodeURIComponent( path )
                                 + '&view=' + encodeURIComponent( view )
                         } )
@@ -256,6 +250,66 @@ $rsd_rb_disk_view = ( isset( $_GET['rb_disk_view'] ) && 'files' === $_GET['rb_di
                             .catch( function () {
                                 container.style.opacity = '';
                             } );
+                    }
+
+                    function handleDelete( link ) {
+                        var path      = link.getAttribute( 'data-delete-path' );
+                        var name      = link.getAttribute( 'data-delete-name' );
+                        var sizeLabel = link.getAttribute( 'data-delete-size-label' );
+                        var size      = link.getAttribute( 'data-delete-size' );
+                        var mtime     = link.getAttribute( 'data-delete-mtime' );
+
+                        var confirmMsg = <?php echo wp_json_encode( __( 'Permanently delete "%1$s" (%2$s)? This cannot be undone.', 'rsd-remote-backup' ) ); ?>
+                            .replace( '%1$s', name ).replace( '%2$s', sizeLabel );
+                        if ( ! window.confirm( confirmMsg ) ) {
+                            return;
+                        }
+
+                        container.style.opacity = '0.5';
+
+                        fetch( ajaxurl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: 'action=rsd_rb_disk_file_delete'
+                                + '&nonce=' + encodeURIComponent( deleteNonce )
+                                + '&path=' + encodeURIComponent( path )
+                                + '&size=' + encodeURIComponent( size )
+                                + '&mtime=' + encodeURIComponent( mtime || '' )
+                        } )
+                            .then( function ( r ) { return r.json(); } )
+                            .then( function ( res ) {
+                                if ( res && res.success ) {
+                                    // Refresh this same folder's file listing — list_files_in()
+                                    // re-lists the directory live rather than reading cached scan
+                                    // data, so this reflects the deletion with no extra bookkeeping.
+                                    loadView( currentPath, currentView );
+                                } else {
+                                    container.style.opacity = '';
+                                    window.alert( ( res && res.data && res.data.message ) ? res.data.message : <?php echo wp_json_encode( __( 'Delete failed.', 'rsd-remote-backup' ) ); ?> );
+                                }
+                            } )
+                            .catch( function () {
+                                container.style.opacity = '';
+                                window.alert( <?php echo wp_json_encode( __( 'Delete failed — network error.', 'rsd-remote-backup' ) ); ?> );
+                            } );
+                    }
+
+                    // Event delegation on the stable outer container — links inside
+                    // get replaced wholesale on every navigation/delete, so binding to
+                    // each <a> individually would need re-binding after every update.
+                    container.addEventListener( 'click', function ( e ) {
+                        var deleteLink = e.target.closest( 'a[data-delete-path]' );
+                        if ( deleteLink && container.contains( deleteLink ) ) {
+                            e.preventDefault();
+                            handleDelete( deleteLink );
+                            return;
+                        }
+
+                        var navLink = e.target.closest( 'a[data-disk-path]' );
+                        if ( navLink && container.contains( navLink ) ) {
+                            e.preventDefault();
+                            loadView( navLink.getAttribute( 'data-disk-path' ), navLink.getAttribute( 'data-disk-view' ) || 'folder' );
+                        }
                     } );
                 } )();
             </script>

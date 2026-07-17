@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.8.8
+Stable tag: 0.8.9
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,10 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.8.9 =
+* New: Disk Usage tab's per-file listing now has a "Delete" action, permanently removing that one file (files only — recursive folder deletion is deliberately not included, since it needs its own chunked/timeout-safe machinery and a stronger confirmation gate; a future addition). Two layers of protection: (1) a hardcoded blocklist refuses to delete anything inside wp-admin, wp-includes, the active theme, any active plugin, this plugin's own folder, or wp-config.php/.htaccess, regardless of confirmation — shown as "Protected" instead of a Delete link; (2) the delete is re-verified against the file's *current* size/modified-time immediately before it happens, and refused if either has changed since the row was shown — guards against deleting a file that's been silently replaced/rotated/regenerated under the same name since the last scan (or since the folder was last viewed). Every delete (and every blocked attempt) is logged.
+* Changed: "CRM API Access" (endpoints, required header, API key reveal/regenerate) moved from the Status & Log tab to the License tab. The "Regenerate" action's post-redirect now lands on the License tab instead of Status & Log to match.
 
 = 0.8.8 =
 * New: Disk Usage tab now shows a "Modified" column for both folders and individual files — for a file, its own last-modified time; for a folder, the most recently modified file anywhere within it (recursively), which is far more useful for spotting where new/changed content landed than a folder's own filesystem mtime (which only changes when something is added/removed directly inside it, and never propagates to parent folders on its own). Tracked during the main scan at negligible extra cost — filesize() and filemtime() on the same path share PHP's per-request stat cache, so capturing both is effectively free.

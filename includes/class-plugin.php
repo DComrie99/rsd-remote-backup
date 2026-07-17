@@ -76,6 +76,9 @@ class RSD_RB_Plugin {
         // Disk Usage tab's in-place tree navigation (logged-in admin only)
         add_action( 'wp_ajax_rsd_rb_disk_scan_view', array( $this, 'ajax_disk_scan_view' ) );
 
+        // Disk Usage tab's per-file delete (logged-in admin only)
+        add_action( 'wp_ajax_rsd_rb_disk_file_delete', array( $this, 'ajax_disk_file_delete' ) );
+
         // Background scan (WP-Cron)
         add_action( 'rsd_rb_scan', array( $this, 'run_scan' ) );
 
@@ -459,7 +462,7 @@ class RSD_RB_Plugin {
                 }
                 RSD_RB_Rest_Api::generate_and_store_key();
                 RSD_RB_Logger::info( 'REST API key regenerated.' );
-                wp_redirect( add_query_arg( 'rb_notice', 'api_key_regenerated', $redirect . '#tab-status' ) );
+                wp_redirect( add_query_arg( 'rb_notice', 'api_key_regenerated', $redirect . '#tab-license' ) );
                 exit;
 
             case 'resync':
@@ -662,6 +665,34 @@ class RSD_RB_Plugin {
         $html = ob_get_clean();
 
         wp_send_json_success( array( 'html' => $html ) );
+    }
+
+    /**
+     * Deletes a single file from the Disk Usage tab's per-file listing.
+     * All the actual safety logic (protected paths, re-verifying the file
+     * hasn't changed since it was shown) lives in RSD_RB_File_Deleter —
+     * this just wires up the nonce/capability gate and logs the outcome,
+     * same as every other admin action in this plugin.
+     */
+    public function ajax_disk_file_delete(): void {
+        check_ajax_referer( 'rsd_rb_disk_file_delete', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'Forbidden' ), 403 );
+        }
+
+        $path           = isset( $_POST['path'] ) ? wp_unslash( $_POST['path'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash
+        $expected_size  = isset( $_POST['size'] ) ? (int) $_POST['size'] : -1;
+        $expected_mtime = ( isset( $_POST['mtime'] ) && '' !== $_POST['mtime'] ) ? (int) $_POST['mtime'] : null;
+
+        $result = RSD_RB_File_Deleter::delete( $path, $expected_size, $expected_mtime );
+
+        if ( $result['success'] ) {
+            RSD_RB_Logger::info( 'Maintenance: deleted file via Disk Usage tab: ' . $path );
+            wp_send_json_success( $result );
+        } else {
+            RSD_RB_Logger::info( 'Maintenance: file delete blocked/failed (' . $result['code'] . '): ' . $path );
+            wp_send_json_error( $result );
+        }
     }
 
     private function test_connection(): string {

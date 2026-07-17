@@ -78,18 +78,37 @@ $rsd_rb_disk_segments = ( '' === $rsd_rb_disk_rel ) ? array() : preg_split( '#[\
                 <th><?php esc_html_e( 'File', 'rsd-remote-backup' ); ?></th>
                 <th><?php esc_html_e( 'Size', 'rsd-remote-backup' ); ?></th>
                 <th><?php esc_html_e( 'Modified', 'rsd-remote-backup' ); ?></th>
+                <th><?php esc_html_e( 'Actions', 'rsd-remote-backup' ); ?></th>
             </tr>
         </thead>
         <tbody>
-            <?php foreach ( $rsd_rb_file_data['files'] as $rsd_rb_file ) : ?>
+            <?php foreach ( $rsd_rb_file_data['files'] as $rsd_rb_file ) :
+                $rsd_rb_protected = RSD_RB_File_Deleter::is_protected( $rsd_rb_file['path'] );
+                ?>
                 <tr>
                     <td>📄 <?php echo esc_html( $rsd_rb_file['name'] ); ?></td>
                     <td><?php echo esc_html( size_format( $rsd_rb_file['size'], 2 ) ); ?></td>
                     <td><?php echo esc_html( RSD_RB_Disk_Scanner::format_mtime( $rsd_rb_file['mtime'] ) ); ?></td>
+                    <td>
+                        <?php if ( $rsd_rb_protected ) : ?>
+                            <span class="rsd-rb-badge rsd-rb-badge--complete" title="<?php esc_attr_e( 'Core WordPress files, the active theme, an active plugin, and this plugin\'s own folder cannot be deleted from here.', 'rsd-remote-backup' ); ?>">
+                                <?php esc_html_e( 'Protected', 'rsd-remote-backup' ); ?>
+                            </span>
+                        <?php else : ?>
+                            <a href="#" class="rsd-rb-row-delete"
+                               data-delete-path="<?php echo esc_attr( $rsd_rb_file['path'] ); ?>"
+                               data-delete-name="<?php echo esc_attr( $rsd_rb_file['name'] ); ?>"
+                               data-delete-size="<?php echo esc_attr( $rsd_rb_file['size'] ); ?>"
+                               data-delete-size-label="<?php echo esc_attr( size_format( $rsd_rb_file['size'], 2 ) ); ?>"
+                               data-delete-mtime="<?php echo esc_attr( null === $rsd_rb_file['mtime'] ? '' : $rsd_rb_file['mtime'] ); ?>">
+                                <?php esc_html_e( 'Delete', 'rsd-remote-backup' ); ?>
+                            </a>
+                        <?php endif; ?>
+                    </td>
                 </tr>
             <?php endforeach; ?>
             <?php if ( empty( $rsd_rb_file_data['files'] ) ) : ?>
-                <tr><td colspan="3"><em><?php esc_html_e( 'No loose files found here (they may have changed since the scan completed).', 'rsd-remote-backup' ); ?></em></td></tr>
+                <tr><td colspan="4"><em><?php esc_html_e( 'No loose files found here (they may have changed since the scan completed).', 'rsd-remote-backup' ); ?></em></td></tr>
             <?php endif; ?>
         </tbody>
     </table>
