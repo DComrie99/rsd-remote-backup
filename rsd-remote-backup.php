@@ -3,7 +3,7 @@
  * Plugin Name:       Red Swirl Design Remote Backup
  * Plugin URI:        https://github.com/DComrie99/rsd-crm
  * Description:       Uploads All-in-One WP Migration backups to Google Drive or Microsoft OneDrive with chunked, resumable transfers and automatic retention.
- * Version:           0.8.4
+ * Version:           0.8.5
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Red Swirl Design
@@ -17,7 +17,7 @@ defined( 'ABSPATH' ) || exit;
 
 // --- Constants -----------------------------------------------------------
 
-define( 'RSD_RB_VERSION',        '0.8.4' );
+define( 'RSD_RB_VERSION',        '0.8.5' );
 define( 'RSD_RB_FILE',           __FILE__ );
 define( 'RSD_RB_DIR',            plugin_dir_path( __FILE__ ) );
 define( 'RSD_RB_URL',            plugin_dir_url( __FILE__ ) );
@@ -62,6 +62,7 @@ function RSD_RB_init(): void {
     require_once RSD_RB_DIR . 'includes/class-server-stats.php';
     require_once RSD_RB_DIR . 'includes/class-rest-api.php';
     require_once RSD_RB_DIR . 'includes/class-comment-maintenance.php';
+    require_once RSD_RB_DIR . 'includes/class-disk-scanner.php';
 
     // Provider interface + adapters
     require_once RSD_RB_DIR . 'includes/providers/interface-provider.php';

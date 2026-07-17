@@ -581,6 +581,30 @@ class RSD_RB_Plugin {
                 RSD_RB_Logger::info( 'Maintenance: deleted all comments (' . $deleted . ' removed).' );
                 wp_redirect( add_query_arg( 'rb_notice', 'comments_deleted_' . $deleted, $redirect ) );
                 exit;
+
+            case 'disk_scan_start':
+                if ( ! wp_verify_nonce( $nonce, 'rsd_rb_disk_scan_start' ) ) {
+                    wp_die( esc_html__( 'Security check failed.', 'rsd-remote-backup' ) );
+                }
+                RSD_RB_Disk_Scanner::start();
+                wp_redirect( add_query_arg( 'rb_tab', 'disk-usage', $redirect ) );
+                exit;
+
+            case 'disk_scan_continue':
+                if ( ! wp_verify_nonce( $nonce, 'rsd_rb_disk_scan_continue' ) ) {
+                    wp_die( esc_html__( 'Security check failed.', 'rsd-remote-backup' ) );
+                }
+                RSD_RB_Disk_Scanner::run_chunk();
+                wp_redirect( add_query_arg( 'rb_tab', 'disk-usage', $redirect ) );
+                exit;
+
+            case 'disk_scan_cancel':
+                if ( ! wp_verify_nonce( $nonce, 'rsd_rb_disk_scan_cancel' ) ) {
+                    wp_die( esc_html__( 'Security check failed.', 'rsd-remote-backup' ) );
+                }
+                RSD_RB_Disk_Scanner::cancel();
+                wp_redirect( add_query_arg( 'rb_tab', 'disk-usage', $redirect ) );
+                exit;
         }
     }
 

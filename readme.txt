@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.8.4
+Stable tag: 0.8.5
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.8.5 =
+* New: "Disk Usage" tab added to Maintenance — walks the WordPress install (from its root down) and reports total size per folder, cPanel-style, for tracking down sudden backup/disk-usage growth without needing the host's own file manager. Deliberately a one-off manual scan, not a scheduled background task: click Start, leave the tab open, and it advances itself a few seconds at a time (via the browser reloading its own progress) until the whole tree is measured, then lets you drill into any folder to see its children's sizes, biggest first. Closing the tab pauses it — reopening the tab resumes exactly where it left off. No WP-Cron/Action Scheduler involved at all, so there's nothing to go stale in the background between runs.
 
 = 0.8.4 =
 * New: Maintenance → Comments now shows a full raw breakdown by `comment_type` — every row actually in the comments table, including anything the "Delete All Comments" button leaves alone — with a Yes/No column for whether each type gets deleted. Answers "what's actually in here, and what's this button going to touch" directly on-screen, instead of needing to run the equivalent SQL query by hand against the database.
