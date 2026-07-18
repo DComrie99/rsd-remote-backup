@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.9.0
+Stable tag: 0.9.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.9.1 =
+* New: `POST /self-update` endpoint — actually installs an available rsd-remote-backup update (the "kick off the update" counterpart to `plugin_self_update`, which only ever reported availability). Uses WordPress's own Plugin_Upgrader + Automatic_Upgrader_Skin, the same pair WordPress's own background auto-updater and the "Update Now" button use. Scoped to this plugin's own update only.
 
 = 0.9.0 =
 * New: `GET /updates` now includes a `plugin_self_update` field reporting whether a newer version of this plugin itself is available — separate from its own entry in the general `plugins[]` list, since that entry can't reliably reflect this when read via the API (this plugin's update checker only ever activates itself on a real WP Admin page load, which an API call isn't).

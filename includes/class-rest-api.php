@@ -10,6 +10,7 @@ defined( 'ABSPATH' ) || exit;
  *   POST /wp-json/rsd-rb/v1/resync        — reconcile DB records against remote + local reality
  *   GET  /wp-json/rsd-rb/v1/server-stats  — core WP/server health + plugin-specific stats (e.g. WP Rocket Insights)
  *   GET  /wp-json/rsd-rb/v1/updates       — plugin/theme/core/translation update inventory
+ *   POST /wp-json/rsd-rb/v1/self-update   — install an available rsd-remote-backup update
  *
  * Authentication: send the raw API key in either header:
  *   X-RSD-API-Key: <key>
@@ -59,6 +60,12 @@ class RSD_RB_Rest_Api {
         register_rest_route( self::NAMESPACE, '/updates', array(
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => array( __CLASS__, 'get_updates' ),
+            'permission_callback' => array( __CLASS__, 'check_api_key' ),
+        ) );
+
+        register_rest_route( self::NAMESPACE, '/self-update', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( __CLASS__, 'install_self_update' ),
             'permission_callback' => array( __CLASS__, 'check_api_key' ),
         ) );
     }
@@ -231,6 +238,20 @@ class RSD_RB_Rest_Api {
         }
 
         return new WP_REST_Response( RSD_RB_Update_Inventory::collect(), 200 );
+    }
+
+    // -------------------------------------------------------------------------
+    // POST /self-update
+
+    public static function install_self_update( WP_REST_Request $request ): WP_REST_Response {
+        if ( ! RSD_RB_License::is_valid() ) {
+            return new WP_REST_Response( array( 'error' => 'Plugin is not licensed.' ), 403 );
+        }
+
+        $result = RSD_RB_Update_Installer::install_self_update();
+        $status = isset( $result['error'] ) ? 500 : 200;
+
+        return new WP_REST_Response( $result, $status );
     }
 
     // -------------------------------------------------------------------------
