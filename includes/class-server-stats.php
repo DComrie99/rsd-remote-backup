@@ -23,6 +23,7 @@ class RSD_RB_Server_Stats {
 
         return array(
             'site'                => home_url(),
+            'plugin_version'      => RSD_RB_VERSION,
             'timestamp'           => wp_date( 'c' ),
             'core'                => self::collect_core(),
             'provider_connection' => self::collect_provider_connection(),
