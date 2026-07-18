@@ -23,12 +23,55 @@ class RSD_RB_Update_Inventory {
         self::load_wp_admin_includes();
 
         return array(
-            'site'         => home_url(),
-            'checked_at'   => wp_date( 'c' ),
-            'core'         => self::collect_core(),
-            'plugins'      => self::collect_plugins(),
-            'themes'       => self::collect_themes(),
-            'translations' => self::collect_translations(),
+            'site'               => home_url(),
+            'checked_at'         => wp_date( 'c' ),
+            'core'               => self::collect_core(),
+            'plugins'            => self::collect_plugins(),
+            'themes'             => self::collect_themes(),
+            'translations'       => self::collect_translations(),
+            'plugin_self_update' => self::collect_plugin_self_update(),
+        );
+    }
+
+    /**
+     * This plugin's OWN update status — is a newer rsd-remote-backup
+     * release available on GitHub. A clearly-labeled field rather than
+     * expecting CRM to find rsd-remote-backup's own entry buried in
+     * plugins[] by matching its file path.
+     *
+     * Deliberately builds its own update-checker instance here rather than
+     * reusing RSD_RB_Plugin::get_update_checker() — that one is only ever
+     * constructed on real wp-admin page loads (is_admin() gate in
+     * register_update_checker()), so it would be null during this REST
+     * request. Building a second instance is safe: the update-checker
+     * library's constructor just registers a handful of hooks that only do
+     * anything if the WP-admin actions they hook into actually fire later
+     * in the same request (Plugins-screen rendering, an upgrade running,
+     * etc.) — none of which happens during a plain API call. Both
+     * instances read/write the exact same persisted state (a WP option
+     * keyed by plugin slug), so this reports whatever the last real check
+     * (triggered by any admin page load) found — not a fresh live check on
+     * every API call, same as every other update_available/new_version
+     * field on this endpoint.
+     */
+    private static function collect_plugin_self_update(): array {
+        if ( ! class_exists( '\YahnisElsts\PluginUpdateChecker\v5\PucFactory' ) ) {
+            require_once RSD_RB_DIR . 'vendor/plugin-update-checker/plugin-update-checker.php';
+        }
+
+        $checker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
+            'https://github.com/DComrie99/rsd-remote-backup/',
+            RSD_RB_FILE,
+            RSD_RB_SLUG
+        );
+        $checker->getVcsApi()->enableReleaseAssets();
+
+        $update = $checker->getUpdate();
+
+        return array(
+            'version'          => RSD_RB_VERSION,
+            'update_available' => null !== $update,
+            'new_version'      => $update->version ?? null,
         );
     }
 

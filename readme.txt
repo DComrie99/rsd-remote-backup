@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.8.11
+Stable tag: 0.9.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.9.0 =
+* New: `GET /updates` now includes a `plugin_self_update` field reporting whether a newer version of this plugin itself is available — separate from its own entry in the general `plugins[]` list, since that entry can't reliably reflect this when read via the API (this plugin's update checker only ever activates itself on a real WP Admin page load, which an API call isn't).
 
 = 0.8.11 =
 * Changed: `GET /plugins` (added in 0.8.10) renamed to `GET /updates` and broadened to also cover themes, WP core, and pending translation updates — not just plugins. Reproduces the same categories MainWP's own dashboard "Updates" count sums together, for any site with this plugin installed. Safe to rename outright since 0.8.10 hadn't been installed anywhere yet.
