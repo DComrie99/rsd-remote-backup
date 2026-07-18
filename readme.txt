@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.8.10
+Stable tag: 0.8.11
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.8.11 =
+* Changed: `GET /plugins` (added in 0.8.10) renamed to `GET /updates` and broadened to also cover themes, WP core, and pending translation updates — not just plugins. Reproduces the same categories MainWP's own dashboard "Updates" count sums together, for any site with this plugin installed. Safe to rename outright since 0.8.10 hadn't been installed anywhere yet.
 
 = 0.8.10 =
 * Fix: a OneDrive or Google Drive connection could silently go stale over time, with reconnecting then failing claiming there was no valid secret — root cause was the stored encryption key formula including this site's home URL, which isn't actually stable over a site's life (an HTTP→HTTPS migration, a domain change). Encryption no longer depends on it; existing tokens/secrets that can still only be read via the old formula are automatically re-saved under the new one the next time they're used, with no reconnection needed. Also fixed: a decrypt failure was previously assumed to mean "secret stored before encryption existed" and the raw, still-encrypted value was used as the secret itself — now only genuinely pre-encryption values are treated that way; anything else fails clearly instead of silently sending garbage to the provider.
