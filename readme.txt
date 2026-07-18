@@ -4,7 +4,7 @@ Tags: backup, google drive, onedrive, all-in-one wp migration, ai1wm
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.9.2
+Stable tag: 0.9.3
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ Your OAuth consent screen is in "Testing" mode. Google expires refresh tokens af
 in that state. Publish your consent screen to "In production" in the Google Cloud Console.
 
 == Changelog ==
+
+= 0.9.3 =
+* Fix: `POST /self-update` left the plugin deactivated after installing an update. WordPress's `Plugin_Upgrader` deactivates the plugin being upgraded as a safety measure whenever the request isn't detected as a WP-Cron run (a REST call never is) — wp-admin's own "Update Now" button reactivates it afterward if it was active; this endpoint now does the same.
 
 = 0.9.2 =
 * Version-bump-only release, no functional changes — cut specifically to give a v0.9.1 site something to update to, for testing the new `POST /self-update` install path end-to-end.

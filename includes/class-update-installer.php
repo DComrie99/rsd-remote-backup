@@ -74,9 +74,18 @@ class RSD_RB_Update_Installer {
             );
         }
 
+        $plugin_file    = plugin_basename( RSD_RB_FILE );
+        // Captured BEFORE upgrade() runs — Plugin_Upgrader deactivates the
+        // plugin being upgraded as a safety measure whenever the request isn't
+        // detected as wp_doing_cron() (a plain REST request never is), so the
+        // 'active_plugins' option no longer reflects pre-upgrade state by the
+        // time upgrade() returns.
+        $was_active         = is_plugin_active( $plugin_file );
+        $was_network_active = is_plugin_active_for_network( $plugin_file );
+
         $skin     = new \Automatic_Upgrader_Skin();
         $upgrader = new \Plugin_Upgrader( $skin );
-        $result   = $upgrader->upgrade( plugin_basename( RSD_RB_FILE ) );
+        $result   = $upgrader->upgrade( $plugin_file );
 
         if ( is_wp_error( $result ) ) {
             RSD_RB_Logger::error( 'Self-update install failed: ' . $result->get_error_message() );
@@ -98,14 +107,35 @@ class RSD_RB_Update_Installer {
             );
         }
 
+        // Restore the pre-upgrade active state Plugin_Upgrader just cleared —
+        // the same step wp-admin's own AJAX "Update Now" handler
+        // (wp_ajax_update_plugin() in wp-admin/includes/ajax-actions.php) takes
+        // after calling the identical upgrade() method. $silent = true skips
+        // re-firing the plugin's own activation hook — this is restoring
+        // already-active state post-update, not a fresh activation.
+        $reactivate_error = null;
+        if ( $was_active ) {
+            $activated = activate_plugin( $plugin_file, '', $was_network_active, true );
+            if ( is_wp_error( $activated ) ) {
+                $reactivate_error = $activated->get_error_message();
+                RSD_RB_Logger::error( 'Self-update: reactivation after install failed — ' . $reactivate_error );
+            }
+        }
+
         RSD_RB_Logger::info( 'Self-update installed: ' . RSD_RB_VERSION . ' -> ' . $new_version . ' (takes effect on next request).' );
 
-        return array(
+        $response = array(
             'installed'   => true,
             'old_version' => RSD_RB_VERSION,
             'new_version' => $new_version,
             'message'     => 'Updated from ' . RSD_RB_VERSION . ' to ' . $new_version . '. Takes effect on the next request/page load — this request already ran on the old code.',
         );
+
+        if ( null !== $reactivate_error ) {
+            $response['error'] = 'Update installed, but reactivation failed — the plugin is now INACTIVE and must be manually reactivated in wp-admin: ' . $reactivate_error;
+        }
+
+        return $response;
     }
 
     private static function load_upgrader_classes(): void {
@@ -118,7 +148,7 @@ class RSD_RB_Update_Installer {
         if ( ! class_exists( 'Plugin_Upgrader' ) ) {
             require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
         }
-        if ( ! function_exists( 'plugin_basename' ) ) {
+        if ( ! function_exists( 'is_plugin_active' ) ) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
     }
