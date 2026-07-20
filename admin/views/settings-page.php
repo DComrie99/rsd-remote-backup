@@ -18,6 +18,7 @@ $current_provider = RSD_RB_Settings::get_provider();
         <a href="#tab-provider" class="nav-tab"><?php esc_html_e( 'Provider', 'rsd-remote-backup' ); ?></a>
         <a href="#tab-license"  class="nav-tab"><?php esc_html_e( 'License', 'rsd-remote-backup' ); ?></a>
         <a href="#tab-status"   class="nav-tab"><?php esc_html_e( 'Status &amp; Log', 'rsd-remote-backup' ); ?></a>
+        <a href="#tab-diagnostics" class="nav-tab"><?php esc_html_e( 'Diagnostics', 'rsd-remote-backup' ); ?></a>
     </nav>
 
     <form method="post" action="options.php">
@@ -671,161 +672,6 @@ $current_provider = RSD_RB_Settings::get_provider();
                     </td>
                 </tr>
             <?php endif; ?>
-            <?php if ( isset( $server_stats['plugins']['wordfence'] ) ) : $wf = $server_stats['plugins']['wordfence']; ?>
-                <tr>
-                    <th scope="row"><?php esc_html_e( 'Wordfence', 'rsd-remote-backup' ); ?></th>
-                    <td>
-                        <?php echo esc_html( sprintf( 'v%s', $wf['version'] ) ); ?>
-                        <?php if ( ! $wf['firewall_summary_available'] ) : ?>
-                            &nbsp;<em><?php esc_html_e( 'Firewall Summary not available on this site.', 'rsd-remote-backup' ); ?></em>
-                        <?php else : ?>
-                            <table class="widefat striped" style="margin-top:8px;max-width:520px;">
-                                <thead>
-                                    <tr>
-                                        <th><?php esc_html_e( 'Firewall Summary', 'rsd-remote-backup' ); ?></th>
-                                        <th><?php esc_html_e( 'Complex', 'rsd-remote-backup' ); ?></th>
-                                        <th><?php esc_html_e( 'Brute Force', 'rsd-remote-backup' ); ?></th>
-                                        <th><?php esc_html_e( 'Blocklist', 'rsd-remote-backup' ); ?></th>
-                                        <th><?php esc_html_e( 'Total', 'rsd-remote-backup' ); ?></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php
-                                    $window_labels = array(
-                                        '24h' => __( 'Today', 'rsd-remote-backup' ),
-                                        '7d'  => __( 'Week', 'rsd-remote-backup' ),
-                                        '30d' => __( 'Month', 'rsd-remote-backup' ),
-                                    );
-                                    foreach ( $window_labels as $window_key => $label ) :
-                                    ?>
-                                        <tr>
-                                            <th><?php echo esc_html( $label ); ?></th>
-                                            <td><?php echo esc_html( number_format_i18n( $wf['firewall_summary']['complex'][ $window_key ] ) ); ?></td>
-                                            <td><?php echo esc_html( number_format_i18n( $wf['firewall_summary']['brute_force'][ $window_key ] ) ); ?></td>
-                                            <td><?php echo esc_html( number_format_i18n( $wf['firewall_summary']['blocklist'][ $window_key ] ) ); ?></td>
-                                            <td><strong><?php echo esc_html( number_format_i18n( $wf['firewall_summary_totals'][ $window_key ] ) ); ?></strong></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                            <p class="description"><?php esc_html_e( 'Attacks blocked, grouped the same way as the Wordfence dashboard\'s own Firewall Summary widget. "Blocklist" counts may read low/zero on a free (non-Premium) license — real-time blocklist blocking is a paid feature.', 'rsd-remote-backup' ); ?></p>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-            <?php endif; ?>
-            <?php if ( isset( $server_stats['plugins']['ai1wm_unlimited'] ) ) : $ai1wmve = $server_stats['plugins']['ai1wm_unlimited']; ?>
-                <tr>
-                    <th scope="row"><?php esc_html_e( 'All-in-One WP Migration Schedule', 'rsd-remote-backup' ); ?></th>
-                    <td>
-                        <?php if ( $ai1wmve['version'] ) : ?>
-                            <?php echo esc_html( sprintf( 'v%s', $ai1wmve['version'] ) ); ?>
-                            &nbsp;
-                        <?php endif; ?>
-                        <?php if ( 0 === $ai1wmve['schedules_configured'] ) : ?>
-                            <em><?php esc_html_e( 'Unlimited Extension active — no schedules configured.', 'rsd-remote-backup' ); ?></em>
-                        <?php else : ?>
-                            <table class="widefat striped" style="margin-top:8px;max-width:760px;">
-                                <thead>
-                                    <tr>
-                                        <th><?php esc_html_e( 'Event', 'rsd-remote-backup' ); ?></th>
-                                        <th><?php esc_html_e( 'Type', 'rsd-remote-backup' ); ?></th>
-                                        <th><?php esc_html_e( 'Status', 'rsd-remote-backup' ); ?></th>
-                                        <th><?php esc_html_e( 'Scheduled For', 'rsd-remote-backup' ); ?></th>
-                                        <th><?php esc_html_e( 'Storage', 'rsd-remote-backup' ); ?></th>
-                                        <th><?php esc_html_e( 'Last Run', 'rsd-remote-backup' ); ?></th>
-                                        <th><?php esc_html_e( 'Recent Runs', 'rsd-remote-backup' ); ?></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ( $ai1wmve['schedules'] as $schedule ) :
-                                        $last_run_css = 'Success' === $schedule['last_run'] ? 'rsd-rb-badge--complete' : ( 'Failed' === $schedule['last_run'] ? 'rsd-rb-badge--failed' : 'rsd-rb-badge--pending' );
-
-                                        // Precise configured day-of-month/weekday + time, from the raw
-                                        // schedule config — the period()/time() summary ("Per month",
-                                        // "01:00") doesn't say WHICH day of the month it runs on.
-                                        $cfg  = $schedule['schedule'];
-                                        $hour = (int) ( $cfg['hour'] ?? 0 );
-                                        $min  = (int) ( $cfg['minute'] ?? 0 );
-                                        switch ( $cfg['interval'] ?? '' ) {
-                                            case 'Monthly':
-                                                $scheduled_for = sprintf(
-                                                    /* translators: 1: day of month 2: hour 3: minute */
-                                                    __( 'Day %1$d of month at %2$02d:%3$02d', 'rsd-remote-backup' ),
-                                                    (int) ( $cfg['day'] ?? 1 ), $hour, $min
-                                                );
-                                                break;
-                                            case 'Weekly':
-                                                $scheduled_for = sprintf(
-                                                    /* translators: 1: weekday name 2: hour 3: minute */
-                                                    __( '%1$s at %2$02d:%3$02d', 'rsd-remote-backup' ),
-                                                    ucfirst( (string) ( $cfg['weekday'] ?? '' ) ), $hour, $min
-                                                );
-                                                break;
-                                            case 'Daily':
-                                                $scheduled_for = sprintf(
-                                                    /* translators: 1: hour 2: minute */
-                                                    __( 'Daily at %1$02d:%2$02d', 'rsd-remote-backup' ), $hour, $min
-                                                );
-                                                break;
-                                            case 'N-Days':
-                                                $scheduled_for = sprintf(
-                                                    /* translators: 1: number of days 2: hour 3: minute */
-                                                    __( 'Every %1$d day(s) at %2$02d:%3$02d', 'rsd-remote-backup' ),
-                                                    (int) ( $cfg['n'] ?? 1 ), $hour, $min
-                                                );
-                                                break;
-                                            case 'N-Hour':
-                                                $scheduled_for = sprintf(
-                                                    /* translators: %d: number of hours */
-                                                    __( 'Every %d hour(s)', 'rsd-remote-backup' ), (int) ( $cfg['n'] ?? 1 )
-                                                );
-                                                break;
-                                            case 'Hourly':
-                                                $scheduled_for = __( 'Every hour', 'rsd-remote-backup' );
-                                                break;
-                                            default:
-                                                $scheduled_for = $schedule['period'] . ( $schedule['time'] ? ' ' . $schedule['time'] : '' );
-                                        }
-                                    ?>
-                                        <tr>
-                                            <th><?php echo esc_html( $schedule['title'] ); ?></th>
-                                            <td><?php echo esc_html( $schedule['type'] ); ?></td>
-                                            <td><?php echo $schedule['enabled'] ? esc_html__( 'Enabled', 'rsd-remote-backup' ) : esc_html__( 'Disabled', 'rsd-remote-backup' ); ?></td>
-                                            <td><?php echo esc_html( $scheduled_for ); ?></td>
-                                            <td><?php echo esc_html( $schedule['storage'] ); ?></td>
-                                            <td><span class="rsd-rb-badge <?php echo esc_attr( $last_run_css ); ?>"><?php echo esc_html( $schedule['last_run'] ); ?></span></td>
-                                            <td>
-                                                <?php if ( empty( $schedule['log'] ) ) : ?>
-                                                    <em><?php esc_html_e( 'No runs logged yet.', 'rsd-remote-backup' ); ?></em>
-                                                <?php else : ?>
-                                                    <ul style="margin:0;">
-                                                        <?php foreach ( array_slice( $schedule['log'], 0, 5 ) as $entry ) :
-                                                            $entry_css = 'Success' === $entry['status'] ? 'rsd-rb-badge--complete' : ( 'Failed' === $entry['status'] ? 'rsd-rb-badge--failed' : 'rsd-rb-badge--pending' );
-                                                        ?>
-                                                            <li>
-                                                                <small>
-                                                                    <?php echo esc_html( $entry['time'] ? date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( $entry['time'] ) ) : '—' ); ?>
-                                                                    <span class="rsd-rb-badge <?php echo esc_attr( $entry_css ); ?>"><?php echo esc_html( $entry['status'] ?: '—' ); ?></span>
-                                                                    <?php if ( ! empty( $entry['message'] ) ) : ?>
-                                                                        — <span title="<?php echo esc_attr( $entry['message'] ); ?>"><?php echo esc_html( wp_trim_words( $entry['message'], 6, '…' ) ); ?></span>
-                                                                    <?php endif; ?>
-                                                                </small>
-                                                            </li>
-                                                        <?php endforeach; ?>
-                                                    </ul>
-                                                    <?php if ( count( $schedule['log'] ) > 5 ) : ?>
-                                                        <small><em><?php echo esc_html( sprintf( /* translators: %d: number of older runs not shown */ __( '(+%d older)', 'rsd-remote-backup' ), count( $schedule['log'] ) - 5 ) ); ?></em></small>
-                                                    <?php endif; ?>
-                                                <?php endif; ?>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-            <?php endif; ?>
         </table>
 
         <?php
@@ -869,6 +715,11 @@ $current_provider = RSD_RB_Settings::get_provider();
             <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=rsd-remote-backup&rb_action=clear_log' ), 'rsd_rb_clear_log' ) ); ?>"
                class="button button-secondary"><?php esc_html_e( 'Clear Log', 'rsd-remote-backup' ); ?></a>
         </p>
+
+    </div><!-- #tab-status -->
+
+    <!-- ===== Diagnostics tab ===== -->
+    <div id="tab-diagnostics" class="rsd-rb-tab" style="display:none;">
 
         <!-- Environment Diagnostics -->
         <h2><?php esc_html_e( 'Environment Diagnostics', 'rsd-remote-backup' ); ?></h2>
@@ -1052,6 +903,6 @@ $current_provider = RSD_RB_Settings::get_provider();
             </tr>
         </table>
 
-    </div><!-- #tab-status -->
+    </div><!-- #tab-diagnostics -->
 
 </div><!-- .rsd-rb-wrap -->
